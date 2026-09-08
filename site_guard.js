@@ -18,11 +18,27 @@
   // Individual cards, tabs, and menu entries that can wrap a single Shorts link.
   const YOUTUBE_ITEMS = "ytd-reel-item-renderer, ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer, ytm-shorts-lockup-view-model-v2, ytm-shorts-lockup-view-model, ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer, tp-yt-paper-tab, yt-tab-shape";
 
-  // Platforms whose entry points are fully covered by the rules in site_guard.css. On these the
-  // script does no hiding at all, which is what removes the scanning cost while scrolling.
-  const CSS_COVERED = new Set(["youtube"]);
+  // Platforms whose entry points are hidden by the rules in site_guard.css, with the sections those
+  // rules cover. On these the script does no hiding at all, which is what removes the scanning cost
+  // while scrolling: a card the style engine never lays out cannot shift anything when it goes.
+  // The stylesheet only knows short-form entry points, so somebody in Selected sections mode who
+  // also blocks Explore, Watch or Marketplace still gets the script path for those links.
+  const CSS_COVERED = new Map([
+    ["youtube", ["shorts"]],
+    ["instagram", ["reels"]],
+    ["facebook", ["reels"]]
+  ]);
   const CSS_HAS_SUPPORT = typeof CSS !== "undefined" && typeof CSS.supports === "function"
     && CSS.supports("selector(:has(a))");
+  // Conversations are never modified: Instagram Direct and Facebook Messenger. Nothing in a thread
+  // is hidden, whatever it links to. Opening a Reel from one is still refused, because the click
+  // and navigation guards look at the destination rather than the page.
+  const CONVERSATION_PATHS = { instagram: /^\/direct(?:\/|$)/i, facebook: /^\/messages(?:\/|$)/i };
+
+  function isConversationPage(platform) {
+    const pattern = platform ? CONVERSATION_PATHS[platform.id] : null;
+    return Boolean(pattern) && pattern.test(location.pathname);
+  }
 
   let settings = R.getDefaultSettings();
   let lastHandled = "";
@@ -91,7 +107,15 @@
     if (!platform || !R.isScheduleActive(settings, new Date())) return "off";
     const setting = settings.platforms[platform.id];
     if (!setting || setting.mode === "off") return "off";
-    return R.hidesEntryPoints(settings, platform) ? "hide" : "keep";
+    // A stylesheet cannot read the address, so this is where a conversation is excused from it.
+    if (isConversationPage(platform)) return "off";
+    if (!R.hidesEntryPoints(settings, platform)) return "keep";
+    // The rules hide a section's entry points wholesale, so they are only armed while that section
+    // is blocked. hidesEntryPoints does not look at per-section choices; without this, somebody in
+    // Selected sections mode who deliberately left Reels unchecked would lose them anyway.
+    const covered = CSS_COVERED.get(platform.id);
+    if (!covered) return "hide";
+    return covered.some((sectionId) => R.sectionBlocked(settings, platform, sectionId)) ? "hide" : "keep";
   }
 
   function applyModeAttribute() {
@@ -119,11 +143,23 @@
     else element.removeAttribute("data-reelless-surfaces");
   }
 
-  // True when the stylesheet is already hiding everything this platform needs hidden.
-  function cssIsHandlingHiding() {
+  // True when the stylesheet is already hiding everything this platform needs hidden: every section
+  // blocked right now is one its rules cover. Off has nothing to hide, and Block all puts the focus
+  // screen over every page, so neither needs the script either.
+  function cssIsHandlingHiding(platform) {
     if (!CSS_HAS_SUPPORT) return false;
+    const covered = platform ? CSS_COVERED.get(platform.id) : null;
+    if (!covered) return false;
+    const setting = settings.platforms[platform.id];
+    if (!setting || setting.mode === "off" || setting.mode === "all") return true;
+    return platform.sections.every((section) => covered.includes(section.id) || !R.sectionBlocked(settings, platform, section.id));
+  }
+
+  // Whether the script has any hiding to do on this page. Nothing on a conversation, and nothing
+  // where the stylesheet already covers it.
+  function scriptHidesHere() {
     const platform = R.platformForUrl(location.href);
-    return Boolean(platform) && CSS_COVERED.has(platform.id);
+    return Boolean(platform) && !isConversationPage(platform) && !cssIsHandlingHiding(platform);
   }
 
   function startObserver() {
@@ -142,12 +178,13 @@
     pendingParents.clear();
   }
 
-  // Watching the DOM is only worth its cost on platforms the stylesheet does not cover.
+  // Watching the DOM is only worth its cost where the script itself has hiding to do.
   function syncObserver() {
-    if (cssIsHandlingHiding()) {
+    if (!scriptHidesHere()) {
       if (observer) {
         stopObserver();
-        // Drop anything the script hid before the stylesheet took over.
+        // Drop anything the script hid before the stylesheet took over, or before the page became
+        // a conversation.
         document.querySelectorAll(HIDDEN_SELECTOR).forEach((node) => node.removeAttribute(HIDDEN_ATTR));
       }
       return;
@@ -357,21 +394,42 @@
     }
   }
 
-  // A hidden container whose contents changed stays hidden only while it still holds a blocked link.
-  // A display:none element reports a zero rect, so it cannot report its own position. Ask the
-  // nearest sibling that is laid out. Returns false whenever the answer is genuinely unknown.
-  function isAboveViewport(container) {
-    for (let probe = container.previousElementSibling; probe; probe = probe.previousElementSibling) {
-      const rect = probe.getBoundingClientRect();
-      if (rect.height || rect.width) return rect.bottom <= 0;
+  // Where the top edge of a hidden container would land if it were shown, in viewport coordinates,
+  // or null when that cannot be established. A display:none element has no geometry of its own, so
+  // the answer is read from what is laid out around it: the next sibling stands exactly where the
+  // container would, and failing that the container would begin at the previous sibling's bottom
+  // edge (or level with it in a row, which is never above it). A card alone in its own wrapper has
+  // no siblings, so the wrapper's are consulted instead; a wrapper with size of its own encloses
+  // the container somewhere inside it, and its top edge is the only bound that can be trusted.
+  function hiddenTop(container) {
+    let node = container;
+    while (node && node !== document.body && node !== document.documentElement) {
+      for (let probe = node.nextElementSibling; probe; probe = probe.nextElementSibling) {
+        const rect = probe.getBoundingClientRect();
+        if (rect.height || rect.width) return rect.top;
+      }
+      for (let probe = node.previousElementSibling; probe; probe = probe.previousElementSibling) {
+        const rect = probe.getBoundingClientRect();
+        if (rect.height || rect.width) return rect.bottom;
+      }
+      const parent = node.parentElement;
+      if (!parent || parent === document.body || parent === document.documentElement) return null;
+      const box = parent.getBoundingClientRect();
+      if (box.height || box.width) return box.top;
+      node = parent;
     }
-    for (let probe = container.nextElementSibling; probe; probe = probe.nextElementSibling) {
-      const rect = probe.getBoundingClientRect();
-      if (rect.height || rect.width) return rect.top < 0;
-    }
-    return false;
+    return null;
   }
 
+  // True only with positive evidence that the container sits entirely below the viewport, where
+  // giving it its height back moves nothing the reader can see. Unknown is false.
+  function isBelowViewport(container) {
+    const top = hiddenTop(container);
+    const viewportBottom = globalThis.innerHeight;
+    return top !== null && Number.isFinite(viewportBottom) && viewportBottom > 0 && top >= viewportBottom;
+  }
+
+  // A hidden container whose contents changed stays hidden while it still holds a blocked link.
   function reevaluateHidden(container, platform, now) {
     const anchors = Array.from(container.querySelectorAll("a[href]"));
     if (container.matches("a[href]")) anchors.unshift(container);
@@ -384,18 +442,24 @@
       if (blockedEntry(anchor, platform, now)) return;
     }
     // Never give height back above the reader; that pushes everything below it down and carries
-    // them backwards up the feed. A hidden element has no geometry of its own, so its position is
-    // read from the nearest sibling that is actually laid out. If that cannot be established, the
-    // reveal is allowed: a card that should reappear matters more than a hypothetical shift.
-    if (isAboveViewport(container)) return;
+    // them backwards up the feed. That includes a card whose position cannot be established and
+    // one whose neighbour merely straddles the top of the viewport, which is where a reveal is most
+    // visible. The card stays hidden and is looked at again on the next pass, so it reappears once
+    // it provably sits below the reader. On browsers with :has() this path never runs for a Reel:
+    // a live stylesheet rule has no marker to take back.
+    if (!isBelowViewport(container)) {
+      if (container.isConnected) pendingParents.add(container);
+      return;
+    }
     container.removeAttribute(HIDDEN_ATTR);
   }
 
   function hideBlockedEntryPoints(full) {
     const now = new Date();
     const platform = R.platformForUrl(location.href);
-    // Nothing to do when the style engine has already hidden these before they were painted.
-    if (cssIsHandlingHiding()) {
+    // Nothing to do on a conversation, or when the style engine has already hidden these before
+    // they were painted.
+    if (!scriptHidesHere()) {
       pendingRoots.clear();
       pendingParents.clear();
       return;
@@ -576,6 +640,14 @@
     unpinFocusScreen();
     requestFullScan();
   });
+
+  // A conversation is excused from the stylesheet before the settings are even read. That decision
+  // depends only on the address, and stamping it now, while the document is still empty, means
+  // nothing in a thread is hidden even for the moment it takes the settings to arrive.
+  if (document.documentElement && isConversationPage(R.platformForUrl(location.href))) {
+    lastMode = "off";
+    document.documentElement.dataset.reellessMode = "off";
+  }
 
   chrome.storage.local.get([R.SETTINGS_KEY, R.LEGACY_SETTINGS_KEY]).then((stored) => {
     settings = R.normalizeSettings(stored[R.SETTINGS_KEY] || stored[R.LEGACY_SETTINGS_KEY]);

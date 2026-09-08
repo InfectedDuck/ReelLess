@@ -33,6 +33,31 @@ html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
   display: none !important;
 }
 
+/* Instagram and Facebook. A Reel in a feed is an ordinary card, <article> on Instagram and
+   [role="article"] on Facebook, told apart only by the link inside it, so the card is found from
+   the link. Only the innermost card is ever taken: a wrapper that holds another post keeps its
+   place, and nothing that contains the page's main region is a candidate. Facebook's Reels shelf
+   is one such card holding nothing but Reel links, so it goes as a unit, heading included; a post
+   with a comment thread under it holds other cards and stays, its Reel link alone removed.
+
+   The rules cannot see the address. site_guard.js stamps "off" on Instagram Direct and Messenger
+   conversations before the settings are read, so nothing in a thread is ever touched. */
+html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
+  /* Feed cards: the innermost article or list item holding a Reel link. */
+  article:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]),
+  [role="article"]:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]),
+  [role="listitem"]:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]),
+  li:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]),
+  /* Links that sit outside any card: the Reels entry in the navigation rail (/reels/), a profile's
+     Reels tab (/handle/reels/, which never contains /reel/), and the tiles of a profile or Explore
+     grid, which are bare links with no card around them. */
+  a[href*="/reel/"],
+  a[href*="/reels/"],
+  a[href$="/reels"]
+) {
+  display: none !important;
+}
+
 /* Optional YouTube surfaces. Each is opt-in and off until switched on, so the attribute is absent
    by default and these rules do nothing. Unlike the Shorts rules above, none of these block
    navigation: the page stays reachable, it is just quieter. */

@@ -8,15 +8,25 @@ const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mill
 // jsdom cannot navigate, so redirects surface as "not implemented" reports; every other error is a failure.
 const unexpectedErrors = [];
 
-async function fixture({ url, html, settings }) {
+// jsdom has no CSS global and its selector engine rejects :has(), so every fixture takes the script
+// path by default. `cssHas` pretends the browser supports :has(), which is enough to prove the
+// script stands down on covered platforms; whether the rules themselves match is checked in real
+// Chrome by scripts/smoke-extension.mjs.
+async function fixture({ url, html, settings, cssHas = false }) {
   const messages = [];
   const settingsListeners = [];
+  const observers = [];
   const virtualConsole = new VirtualConsole();
   virtualConsole.on("jsdomError", (error) => {
     if (!/not implemented: navigation/i.test(error.message)) unexpectedErrors.push(error);
   });
   const dom = new JSDOM(html, { url, runScripts: "outside-only", pretendToBeVisual: true, virtualConsole });
   dom.window.HTMLMediaElement.prototype.pause = () => {};
+  if (cssHas) dom.window.CSS = { supports: (query) => query === "selector(:has(a))" };
+  const NativeObserver = dom.window.MutationObserver;
+  dom.window.MutationObserver = class extends NativeObserver {
+    constructor(callback) { super(callback); observers.push(this); }
+  };
   dom.window.chrome = {
     storage: {
       local: { get: async () => ({ settingsV2: settings }) },
@@ -34,13 +44,38 @@ async function fixture({ url, html, settings }) {
     settingsListeners.forEach((listener) => listener({ settingsV2: { newValue: next } }, "local"));
     await wait(180);
   };
-  return { dom, document: dom.window.document, messages, changeSettings };
+  // The guard's own observer, if it made one. The test fixtures observe too, so count only the
+  // observers created before the fixture handed control back.
+  const guardObservers = observers.length;
+  const mode = () => dom.window.document.documentElement.dataset.reellessMode;
+  return { dom, document: dom.window.document, messages, changeSettings, guardObservers, mode };
 }
 
 function withEntryPoints(base, platformId, entryPoints) {
   const next = JSON.parse(JSON.stringify(base));
   next.platforms[platformId].entryPoints = entryPoints;
   return next;
+}
+
+function withSections(base, platformId, sections) {
+  const next = JSON.parse(JSON.stringify(base));
+  next.platforms[platformId].mode = "selected";
+  next.platforms[platformId].sections = sections;
+  return next;
+}
+
+// jsdom lays nothing out: every rect is zero and the window is 1024x768. Give named elements a
+// vertical position in viewport coordinates so the reveal guard has something to read.
+function layOut(document, boxes) {
+  for (const [id, [top, bottom]] of Object.entries(boxes)) {
+    document.getElementById(id).getBoundingClientRect = () => ({ top, bottom, left: 0, right: 600, width: 600, height: bottom - top, x: 0, y: top });
+  }
+}
+
+// Forces the next guard pass without waiting on its one-second sweep.
+async function nextPass(dom) {
+  dom.window.dispatchEvent(new dom.window.Event("popstate"));
+  await wait(200);
 }
 
 function observeHiddenFlips(dom, node) {
@@ -75,7 +110,50 @@ assert.equal(result.document.getElementById("friend-video").hasAttribute("data-r
 assert.equal(result.document.getElementById("main").hasAttribute("data-reelless-hidden"), false);
 assert.equal(result.document.getElementById("reelless-direct-blocked-notice"), null);
 assert.equal(result.messages.filter((message) => message.type === "recordBlockAttempt").length, 0);
+assert.equal(result.mode(), "off", "the stylesheet gate must be released on a conversation");
 result.dom.window.close();
+
+// A Reel link inside a Direct thread is left exactly as it is, on the script path (no :has()) and
+// on the stylesheet path alike. Opening it is still refused, and the refusal is counted.
+for (const cssHas of [false, true]) {
+  result = await fixture({
+    url: "https://www.instagram.com/direct/t/friend/",
+    settings: defaults,
+    cssHas,
+    html: `<main id="main"><div class="msg" id="m1">Hey</div><div class="msg" id="m2"><article id="shared-card"><a id="shared-reel" href="/reel/fromfriend/">Watch this</a></article></div><div class="msg" id="m3"><a id="profile-link" href="/friend/">friend</a></div></main>`
+  });
+  assert.equal(result.mode(), "off", `cssHas=${cssHas}: a conversation must stamp off so the stylesheet hides nothing`);
+  assert.equal(result.document.querySelectorAll("[data-reelless-hidden]").length, 0, `cssHas=${cssHas}: nothing in a conversation may be hidden`);
+  assert.equal(result.document.getElementById("shared-card").hasAttribute("data-reelless-hidden"), false);
+  assert.equal(result.document.getElementById("shared-reel").hasAttribute("data-reelless-hidden"), false);
+  assert.equal(result.guardObservers, 0, `cssHas=${cssHas}: a conversation is not watched`);
+  assert.equal(
+    result.document.getElementById("shared-reel").dispatchEvent(new result.dom.window.MouseEvent("click", { bubbles: true, cancelable: true })),
+    false,
+    `cssHas=${cssHas}: a Reel opened from a conversation must still be refused`
+  );
+  assert.equal(result.messages.filter((message) => message.type === "recordBlockAttempt").length, 1);
+  result.dom.window.close();
+}
+
+// Messenger threads on facebook.com get the same treatment.
+for (const cssHas of [false, true]) {
+  result = await fixture({
+    url: "https://www.facebook.com/messages/t/12345/",
+    settings: defaults,
+    cssHas,
+    html: `<main id="main"><div role="article" id="msg"><a id="shared-reel" href="/reel/999/">Reel</a></div><ul id="nav"><li id="nav-reels"><a href="/reel/?s=ifu">Reels</a></li></ul></main>`
+  });
+  assert.equal(result.mode(), "off", `cssHas=${cssHas}: Messenger must stamp off`);
+  assert.equal(result.document.querySelectorAll("[data-reelless-hidden]").length, 0, `cssHas=${cssHas}: nothing on a Messenger page may be hidden`);
+  assert.equal(result.guardObservers, 0);
+  assert.equal(
+    result.document.getElementById("shared-reel").dispatchEvent(new result.dom.window.MouseEvent("click", { bubbles: true, cancelable: true })),
+    false,
+    `cssHas=${cssHas}: a Reel opened from Messenger must still be refused`
+  );
+  result.dom.window.close();
+}
 
 // Messenger conversations are likewise not modified or counted.
 result = await fixture({
@@ -233,7 +311,9 @@ assert.equal(result.document.getElementById("shorts-section").dataset.reellessHi
 assert.equal(result.document.getElementById("video-2").hasAttribute("data-reelless-hidden"), false);
 
 // A hidden card that a framework recycles for an ordinary video is shown again, whether its link
-// changes in place or its contents are replaced.
+// changes in place or its contents are replaced, once its place in the feed is provably below the
+// viewport. jsdom lays nothing out, so the neighbour above both cards is placed there explicitly.
+layOut(result.document, { "video-2": [1000, 1200] });
 result.document.getElementById("recycled-link").setAttribute("href", "/watch?v=recycled");
 result.document.getElementById("replaced").innerHTML = `<a href="/watch?v=replaced">Replaced video</a>`;
 await wait(200);
@@ -416,6 +496,132 @@ assert.match(guardSource, /function userDriven\(\)/, "the guard must tell a deli
 assert.match(guardSource, /destination\.sameDocument/, "only in-page transitions may be declined; a real page load needs somewhere to go");
 assert.match(guardSource, /navigation\.addEventListener|nav\.addEventListener\("navigate"/, "the guard must watch same-document navigations");
 
+// Instagram and Facebook on the stylesheet path. With :has() available the script writes no marker
+// and creates no observer, and the gate is armed; the rules themselves are exercised in Chrome.
+const instagramFeed = `<main role="main" id="main">
+  <nav id="rail"><a id="rail-home" href="/">Home</a><a id="rail-reels" href="/reels/">Reels</a><a id="rail-explore" href="/explore/">Explore</a></nav>
+  <div id="feed">
+    <article id="post"><a href="/alice/">alice</a><a href="/p/AAA/">post</a></article>
+    <article id="reel"><a href="/bob/">bob</a><a id="reel-link" href="/reel/XYZ/">reel</a></article>
+    <div role="listitem" id="reel-item"><a href="/reel/ABC/">reel</a></div>
+  </div>
+  <div id="tabs"><a id="tab-posts" href="/nasa/">Posts</a><a id="tab-reels" href="/nasa/reels/">Reels</a></div>
+</main>`;
+result = await fixture({ url: "https://www.instagram.com/", settings: defaults, cssHas: true, html: instagramFeed });
+assert.equal(result.mode(), "hide", "Instagram must arm the stylesheet gate");
+assert.equal(result.document.querySelectorAll("[data-reelless-hidden]").length, 0, "with :has() the script must not mark anything on Instagram");
+assert.equal(result.guardObservers, 0, "with :has() the script must not watch the Instagram DOM");
+result.dom.window.close();
+
+result = await fixture({
+  url: "https://www.facebook.com/",
+  settings: defaults,
+  cssHas: true,
+  html: `<main id="main"><div role="feed"><div role="article" id="unit"><a href="/reel/111/">R1</a></div></div><ul><li id="nav-reels"><a href="/reel/?s=ifu">Reels</a></li></ul></main>`
+});
+assert.equal(result.mode(), "hide", "Facebook must arm the stylesheet gate");
+assert.equal(result.document.querySelectorAll("[data-reelless-hidden]").length, 0, "with :has() the script must not mark anything on Facebook");
+assert.equal(result.guardObservers, 0, "with :has() the script must not watch the Facebook DOM");
+result.dom.window.close();
+
+// The same page on the script path hides the same things, including the nav-rail entry and the
+// profile tab, which sit outside any card. This is what the stylesheet rules are held to.
+result = await fixture({ url: "https://www.instagram.com/", settings: defaults, html: instagramFeed });
+assert.equal(result.document.getElementById("reel").dataset.reellessHidden, "true");
+assert.equal(result.document.getElementById("reel-item").dataset.reellessHidden, "true");
+assert.equal(result.document.getElementById("rail-reels").dataset.reellessHidden, "true", "the nav-rail Reels entry is hidden on its own");
+assert.equal(result.document.getElementById("tab-reels").dataset.reellessHidden, "true", "a profile's Reels tab is hidden on its own");
+for (const id of ["main", "rail", "rail-home", "rail-explore", "feed", "post", "tabs", "tab-posts"]) {
+  assert.equal(result.document.getElementById(id).hasAttribute("data-reelless-hidden"), false, `${id} must stay`);
+}
+assert.ok(result.guardObservers >= 1, "without :has() the script still watches the DOM");
+result.dom.window.close();
+
+// Selected sections with Reels deliberately unchecked: the gate must not arm, or a rule that
+// cannot see per-section choices would hide the Reels they kept. Explore, which they did block,
+// is still taken out by the script, so the observer stays on even where :has() exists.
+for (const cssHas of [false, true]) {
+  result = await fixture({
+    url: "https://www.instagram.com/",
+    settings: withSections(defaults, "instagram", { reels: false, explore: true }),
+    cssHas,
+    html: instagramFeed
+  });
+  assert.equal(result.mode(), "keep", `cssHas=${cssHas}: Reels unchecked must release the stylesheet gate`);
+  assert.equal(result.document.getElementById("reel").hasAttribute("data-reelless-hidden"), false, `cssHas=${cssHas}: a Reel they kept must not be hidden`);
+  assert.equal(result.document.getElementById("rail-reels").hasAttribute("data-reelless-hidden"), false);
+  assert.equal(result.document.getElementById("rail-explore").dataset.reellessHidden, "true", `cssHas=${cssHas}: Explore is blocked, so its entry is hidden by script`);
+  assert.ok(result.guardObservers >= 1, `cssHas=${cssHas}: a blocked section the stylesheet does not cover keeps the script path on`);
+  result.dom.window.close();
+}
+result = await fixture({
+  url: "https://www.instagram.com/",
+  settings: withSections(defaults, "instagram", { reels: true, explore: false }),
+  cssHas: true,
+  html: instagramFeed
+});
+assert.equal(result.mode(), "hide", "Reels checked on its own arms the gate");
+assert.equal(result.guardObservers, 0, "with only Reels blocked the stylesheet covers everything");
+result.dom.window.close();
+result = await fixture({
+  url: "https://www.youtube.com/",
+  settings: withSections(defaults, "youtube", { shorts: false }),
+  cssHas: true,
+  html: `<main id="main"><ytd-reel-shelf-renderer id="shorts"><a href="/shorts/abc">Shorts</a></ytd-reel-shelf-renderer></main>`
+});
+assert.equal(result.mode(), "keep", "YouTube with Shorts unchecked must release the gate too");
+result.dom.window.close();
+
+// The fallback reveal guard. A card recycled from a Reel into an ordinary post keeps its author
+// link, so it is not empty, and none of its links is blocked. Revealing it restores its height,
+// and above the reader that carries them backward up the feed. So a reveal needs positive
+// evidence the card sits below the viewport: unknown geometry, a neighbour above, and a neighbour
+// straddling the top of the viewport all keep it hidden; it reappears once the evidence is there.
+const recycledFeed = `<main role="main" id="main"><div id="feed">
+  <article id="p1"><a href="/alice/">alice</a><a href="/p/A/">post</a></article>
+  <article id="reel"><a href="/bob/">bob</a><a id="reel-link" href="/reel/X/">reel</a></article>
+  <article id="p2"><a href="/carol/">carol</a><a href="/p/B/">post</a></article>
+</div></main>`;
+result = await fixture({ url: "https://www.instagram.com/", settings: defaults, html: recycledFeed });
+assert.equal(result.document.getElementById("reel").dataset.reellessHidden, "true");
+result.document.getElementById("reel-link").setAttribute("href", "/p/C/");
+await nextPass(result.dom);
+assert.equal(result.document.getElementById("reel").dataset.reellessHidden, "true", "unknown geometry must not reveal a recycled card");
+layOut(result.document, { p1: [-900, -100], p2: [-50, 500] });
+await nextPass(result.dom);
+assert.equal(result.document.getElementById("reel").dataset.reellessHidden, "true", "a neighbour straddling the viewport top must not reveal it");
+layOut(result.document, { p1: [-900, -100], p2: [-800, -300] });
+await nextPass(result.dom);
+assert.equal(result.document.getElementById("reel").dataset.reellessHidden, "true", "a card above the reader must not be revealed");
+layOut(result.document, { p1: [100, 700], p2: [900, 1500] });
+await nextPass(result.dom);
+assert.equal(result.document.getElementById("reel").hasAttribute("data-reelless-hidden"), false, "a recycled card below the viewport reappears");
+// A Reel link that loses its href altogether, with the author link surviving, is the same case.
+result.document.getElementById("reel").setAttribute("data-reelless-hidden", "true");
+result.document.getElementById("reel-link").setAttribute("href", "/reel/Y/");
+await nextPass(result.dom);
+layOut(result.document, { p1: [-900, -100], p2: [-50, 500] });
+result.document.getElementById("reel-link").removeAttribute("href");
+await nextPass(result.dom);
+assert.equal(result.document.getElementById("reel").dataset.reellessHidden, "true", "a Reel link losing its href must not reveal the card above the reader");
+result.dom.window.close();
+
+// A card alone in its own wrapper has no siblings; the wrapper's neighbours place it instead.
+result = await fixture({
+  url: "https://www.instagram.com/",
+  settings: defaults,
+  html: `<main role="main" id="main"><div id="feed"><div id="w1"><article id="p1"><a href="/p/A/">post</a></article></div><div id="w2"><article id="reel"><a href="/bob/">bob</a><a id="reel-link" href="/reel/X/">reel</a></article></div><div id="w3"><article id="p2"><a href="/p/B/">post</a></article></div></div></main>`
+});
+assert.equal(result.document.getElementById("reel").dataset.reellessHidden, "true");
+result.document.getElementById("reel-link").setAttribute("href", "/p/C/");
+layOut(result.document, { w1: [-900, -100], w3: [-50, 500] });
+await nextPass(result.dom);
+assert.equal(result.document.getElementById("reel").dataset.reellessHidden, "true", "a wrapped card straddling the top must stay hidden");
+layOut(result.document, { w1: [100, 700], w3: [900, 1500] });
+await nextPass(result.dom);
+assert.equal(result.document.getElementById("reel").hasAttribute("data-reelless-hidden"), false, "a wrapped card below the viewport reappears");
+result.dom.window.close();
+
 // The stylesheet carries the hiding on browsers that support :has(). These assertions pin the
 // contract the CSS relies on, since jsdom has no :has() support and always takes the script path.
 const guardCss = fs.readFileSync(new URL("../site_guard.css", import.meta.url), "utf8");
@@ -437,8 +643,24 @@ for (const surface of ["homeFeed", "sidebar", "comments", "endScreen"]) {
 assert.equal(guardCss.includes('data-reelless-surfaces~="explore"'), false, "Explore and Trending are gone from YouTube's navigation; the rule should not linger");
 assert.match(guardSource, /applySurfaceAttribute/, "the guard must publish which surfaces are on");
 
-assert.match(guardSource, /CSS_COVERED = new Set\(\["youtube"\]\)/, "YouTube hiding is delegated to the stylesheet");
+// Instagram and Facebook rules: the innermost card around a Reel link, never a wrapper holding
+// another post or the main region, plus the links that sit outside any card.
+for (const selector of [
+  'article:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"])',
+  '[role="article"]:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"])',
+  '[role="listitem"]:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"])',
+  'li:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"])',
+  'a[href*="/reel/"]',
+  'a[href*="/reels/"]',
+  'a[href$="/reels"]'
+]) {
+  assert.ok(guardCss.includes(selector), `site_guard.css must cover ${selector}`);
+}
+
+assert.match(guardSource, /CSS_COVERED = new Map\(\[\s*\["youtube", \["shorts"\]\],\s*\["instagram", \["reels"\]\],\s*\["facebook", \["reels"\]\]\s*\]\)/, "YouTube, Instagram and Facebook hiding is delegated to the stylesheet");
 assert.match(guardSource, /CSS\.supports\("selector\(:has\(a\)\)"\)/, "the script must feature-detect rather than assume");
+assert.match(guardSource, /CONVERSATION_PATHS = \{ instagram: \/\^\\\/direct/, "Instagram Direct must be excused from the stylesheet by address");
+assert.match(guardSource, /facebook: \/\^\\\/messages/, "Messenger must be excused from the stylesheet by address");
 
 await wait(50);
 assert.deepEqual(unexpectedErrors.map((error) => error.message), [], "the guard must not raise errors in any fixture");

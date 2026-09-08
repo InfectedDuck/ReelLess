@@ -413,6 +413,21 @@
     return { blocked: Boolean(platformSetting.sections[section.id]), platform, section, reason: "selected" };
   }
 
+  // Whether one section of a platform is blocked under these settings, asked without a URL. It
+  // applies the same mode rules as shouldBlockUrl. The stylesheet gate needs this form: a rule
+  // hides a section's entry points wholesale, so it has to know whether the section is blocked at
+  // all, which hidesEntryPoints cannot say because it never looks at per-section choices.
+  function sectionBlocked(settings, platform, sectionId) {
+    const source = settings && settings.schemaVersion === SCHEMA_VERSION ? settings : normalizeSettings(settings);
+    const definition = platformById(typeof platform === "string" ? platform : platform && platform.id);
+    const setting = definition ? source.platforms[definition.id] : null;
+    const section = definition ? definition.sections.find((item) => item.id === sectionId) : null;
+    if (!setting || !section || setting.mode === "off") return false;
+    if (setting.mode === "all") return true;
+    if (setting.mode === "shortform") return Boolean(section.shortform);
+    return Boolean(setting.sections[section.id]);
+  }
+
   // True when blocked entry points on this platform should be removed from pages that stay available.
   // In "keep" mode the click and navigation guards still stop them from opening.
   function hidesEntryPoints(settings, platform) {
@@ -520,7 +535,7 @@
     SCHEDULE_PRESETS, PLATFORM_MODES, ENTRY_POINT_MODES, APPEARANCE_MODES, ULTIMATE_PROFILES, PLATFORMS,
     platformById, getDefaultSettings, normalizeSettings, normalizeStats, normalizeMeta,
     validateEntry, permissionPatternForEntry, localDay, isScheduleActive,
-    platformForUrl, sectionForUrl, shouldBlockUrl, hidesEntryPoints, activeSurfaces, buildDynamicRules,
+    platformForUrl, sectionForUrl, shouldBlockUrl, sectionBlocked, hidesEntryPoints, activeSurfaces, buildDynamicRules,
     createUltimateSettings, releaseUltimateSettings, pauseUntil, youtubeWatchUrl, reviewEligible
   };
 

@@ -164,32 +164,113 @@ try {
     return shelf && shelf.getClientRects().length === 0;
   });
 
+  // Instagram and Facebook are hidden by the stylesheet too. jsdom cannot evaluate :has(), so this
+  // is where the rules themselves are held to their contract: the innermost card around a Reel
+  // link goes, a wrapper holding another post stays, nothing containing <main> is touched, and the
+  // nav-rail entry and profile tab (which sit outside any card) go on their own. Outcomes are
+  // asserted through layout, not markers, since no marker is written on this path.
+  const hiddenIds = (page) => page.evaluate(() => Array.from(document.querySelectorAll("[id]"))
+    .filter((node) => node.getClientRects().length === 0 && node.id !== "reelless-focus-screen")
+    .map((node) => node.id).sort());
+  const instagramFeed = `<main role="main" id="main">
+    <nav id="rail"><a id="rail-home" href="/">Home</a><a id="rail-reels" href="/reels/">Reels</a><a id="rail-explore" href="/explore/">Explore</a></nav>
+    <div id="feed">
+      <article id="post"><a href="/alice/">alice</a><a href="/p/AAA/">post</a></article>
+      <article id="reel"><a href="/bob/">bob</a><a href="/reel/XYZ/">reel</a></article>
+      <div role="listitem" id="reel-item"><a href="/reel/ABC/">reel</a></div>
+      <article id="wrapper"><article id="inner-post"><a href="/p/BBB/">post</a></article><article id="inner-reel"><a href="/reel/DEF/">reel</a></article></article>
+    </div>
+    <div id="tabs"><a id="tab-posts" href="/nasa/">Posts</a><a id="tab-reels" href="/nasa/reels/">Reels</a><a id="tab-tagged" href="/nasa/tagged/">Tagged</a></div>
+  </main>`;
   const instagram = await context.newPage();
   observePage(instagram);
-  await instagram.route("https://www.instagram.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<main>Instagram fixture</main>" }));
+  await instagram.route("https://www.instagram.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: instagramFeed }));
+  await instagram.goto("https://www.instagram.com/");
+  await instagram.waitForFunction(() => document.documentElement.dataset.reellessMode === "hide");
+  assert.deepEqual(await hiddenIds(instagram), ["inner-reel", "rail-reels", "reel", "reel-item", "tab-reels"], "Instagram: only Reel cards, the nav-rail entry and the profile tab are hidden");
+  assert.equal(await instagram.evaluate(() => document.querySelectorAll("[data-reelless-hidden]").length), 0, "with :has() the script must not mark anything on Instagram");
+
+  // A page whose only card wraps the main region must never lose that region.
+  await instagram.route("https://www.instagram.com/**", (route) => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: `<div role="listitem" id="holds-main"><main id="main"><h1 id="heading">Profile</h1><a id="tile" href="/reel/TILE/">tile</a></main></div>`
+  }));
+  await instagram.goto("https://www.instagram.com/nasa/");
+  await instagram.waitForFunction(() => document.documentElement.dataset.reellessMode === "hide");
+  assert.deepEqual(await hiddenIds(instagram), ["tile"], "a card containing <main> stays; only the bare Reel tile goes");
+
+  // Selected sections with Reels deliberately unchecked releases the gate: the Reels they kept stay.
+  const savedSettings = await worker.evaluate(async () => (await chrome.storage.local.get("settingsV2")).settingsV2);
+  await worker.evaluate(async (current) => {
+    const next = JSON.parse(JSON.stringify(current));
+    next.platforms.instagram.mode = "selected";
+    next.platforms.instagram.sections = { reels: false, explore: false };
+    await chrome.storage.local.set({ settingsV2: next });
+  }, savedSettings);
+  await instagram.route("https://www.instagram.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: instagramFeed }));
+  await instagram.goto("https://www.instagram.com/");
+  await instagram.waitForFunction(() => document.documentElement.dataset.reellessMode === "keep");
+  assert.deepEqual(await hiddenIds(instagram), [], "Reels unchecked in Selected sections must hide nothing");
+  await worker.evaluate(async (saved) => { await chrome.storage.local.set({ settingsV2: saved }); }, savedSettings);
   await instagram.goto("https://www.instagram.com/reel/directfixture");
   await instagram.waitForURL("https://www.instagram.com/");
 
+  // A Direct thread is never modified, even when it carries a Reel link; opening it is still refused.
   const instagramDirect = await context.newPage();
   observePage(instagramDirect);
   await instagramDirect.route("https://www.instagram.com/**", (route) => route.fulfill({
     status: 200,
     contentType: "text/html",
-    body: "<main id=conversation><p>Friend message</p><button id=playVideo aria-label='Play video'>Play</button><video id=friendVideo controls></video></main>"
+    body: route.request().url().includes("/direct/")
+      ? "<main id=conversation><p>Friend message</p><button id=playVideo aria-label='Play video'>Play</button><video id=friendVideo controls></video><article id=sharedCard><a id=sharedReel href='/reel/fromfriend/'>Watch this</a></article></main>"
+      : instagramFeed
   }));
   await instagramDirect.goto("https://www.instagram.com/direct/t/friend");
   await instagramDirect.waitForTimeout(250);
+  assert.equal(await instagramDirect.evaluate(() => document.documentElement.dataset.reellessMode), "off", "a Direct thread releases the stylesheet gate");
   assert.equal(await instagramDirect.locator("#friendVideo").getAttribute("data-reelless-direct-video"), null, "Direct-message videos must remain outside ReelLess protection");
   assert.equal(await instagramDirect.locator("#conversation").getAttribute("data-reelless-hidden"), null, "direct conversation layout must remain");
   assert.equal(await instagramDirect.locator("#reelless-direct-blocked-notice").count(), 0);
+  assert.deepEqual(await hiddenIds(instagramDirect), [], "nothing in a Direct thread is hidden, Reel link included");
+  await instagramDirect.locator("#sharedReel").click();
+  await instagramDirect.waitForURL("https://www.instagram.com/");
 
   // A profile's Reels tab returns to that profile rather than the generic feed.
   await instagram.goto("https://www.instagram.com/nasa/reels/");
   await instagram.waitForURL("https://www.instagram.com/nasa/");
 
+  const facebookFeed = `<main id="main">
+    <div role="feed" id="feed">
+      <div role="article" id="fb-post"><a href="/friend">Friend</a><a href="/photo/?fbid=1">photo</a></div>
+      <div role="article" id="fb-reels-unit"><h3 id="fb-reels-heading">Reels and short videos</h3><a href="/reel/111/">R1</a><a href="/reel/222/">R2</a></div>
+      <div role="article" id="fb-shared"><a id="fb-shared-link" href="/reel/333/">Shared reel</a><div role="article" id="fb-comment"><a href="/friend2">Friend2</a></div></div>
+    </div>
+    <ul id="nav"><li id="nav-reels"><a href="/reel/?s=ifu">Reels</a></li><li id="nav-friends"><a href="/friends/">Friends</a></li></ul>
+  </main>`;
   const facebook = await context.newPage();
   observePage(facebook);
-  await facebook.route("https://www.facebook.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<main>Facebook fixture</main>" }));
+  await facebook.route("https://www.facebook.com/**", (route) => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: route.request().url().includes("/messages/")
+      ? "<main id=conversation><p>Friend message</p><a id=sharedReel href='/reel/999/'>Reel</a></main>"
+      : facebookFeed
+  }));
+  await facebook.goto("https://www.facebook.com/");
+  await facebook.waitForFunction(() => document.documentElement.dataset.reellessMode === "hide");
+  assert.deepEqual(
+    await hiddenIds(facebook),
+    ["fb-reels-heading", "fb-reels-unit", "fb-shared-link", "nav-reels"],
+    "Facebook: the Reels shelf goes with its heading, the nav entry goes, a post holding a comment thread keeps its place and loses only its Reel link"
+  );
+  assert.equal(await facebook.evaluate(() => document.querySelectorAll("[data-reelless-hidden]").length), 0, "with :has() the script must not mark anything on Facebook");
+  await facebook.goto("https://www.facebook.com/messages/t/12345/");
+  await facebook.waitForTimeout(250);
+  assert.equal(await facebook.evaluate(() => document.documentElement.dataset.reellessMode), "off", "Messenger releases the stylesheet gate");
+  assert.deepEqual(await hiddenIds(facebook), [], "nothing in a Messenger thread is hidden, Reel link included");
+  await facebook.locator("#sharedReel").click();
+  await facebook.waitForURL("https://www.facebook.com/");
   await facebook.goto("https://www.facebook.com/reel/directfixture");
   await facebook.waitForURL("https://www.facebook.com/");
 
