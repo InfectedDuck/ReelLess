@@ -44,16 +44,18 @@ html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
    conversations before the settings are read, so nothing in a thread is ever touched. */
 html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
   /* Feed cards: the innermost article or list item holding a Reel link. */
-  article:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]),
-  [role="article"]:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]),
-  [role="listitem"]:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]),
-  li:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]),
+  article:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]),
+  [role="article"]:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]),
+  [role="listitem"]:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]),
+  li:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]),
   /* Links that sit outside any card: the Reels entry in the navigation rail (/reels/), a profile's
      Reels tab (/handle/reels/, which never contains /reel/), and the tiles of a profile or Explore
      grid, which are bare links with no card around them. */
   a[href*="/reel/"],
   a[href*="/reels/"],
-  a[href$="/reels"]
+  a[href$="/reels"],
+  /* Facebook resolves a "/share/r/" link to a Reel, so it is a Reel entry point too. */
+  a[href*="/share/r/"]
 ) {
   display: none !important;
 }

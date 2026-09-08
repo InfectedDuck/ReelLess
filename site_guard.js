@@ -285,7 +285,13 @@
       return { url: profile ? `${url.origin}/${profile[1]}/` : decision.platform.homeUrl, kind: "fallback" };
     }
     if (decision.platform.id === "facebook" && section && section.id === "reels") {
-      return { url: decision.platform.homeUrl, kind: "fallback" };
+      // Coming from a page's Reels tab, the page itself is a less disorienting landing than the
+      // feed. The first segment of a route like /watch/reels/ is not a page name, so those and a
+      // bare /reel/{id} fall back to the feed instead.
+      const named = url.pathname.match(/^\/([^/]+)\/reels?(?:\/|$)/i);
+      const handle = named ? named[1] : null;
+      const route = handle && ["watch", "reel", "reels", "share", "marketplace", "groups", "stories"].includes(handle.toLowerCase());
+      return { url: handle && !route ? `${url.origin}/${handle}/` : decision.platform.homeUrl, kind: "fallback" };
     }
     return null;
   }

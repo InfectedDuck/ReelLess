@@ -187,6 +187,31 @@ assert.equal(R.shouldBlockUrl(defaults, "https://www.facebook.com/nasa/videos/")
 assert.equal(R.shouldBlockUrl(facebookWatch, "https://www.facebook.com/nasa/videos/").blocked, true);
 assert.equal(R.sectionForUrl(R.platformById("facebook"), new URL("https://www.facebook.com/nasa/videos/")).id, "watch");
 
+// Every route that reaches a Facebook Reel must be recognised as Reels, or the default mode lets a
+// Reel through. A shared Reel arrives as /share/r/, and a page's Reels tab begins with a page name.
+const facebookSection = (path) => {
+  const found = R.sectionForUrl(R.platformById("facebook"), new URL(`https://www.facebook.com${path}`));
+  return found ? found.id : null;
+};
+for (const path of ["/reel/abc", "/reels/", "/watch/reels/abc", "/share/r/AbC123/", "/nasa/reels/", "/nasa/reel/"]) {
+  assert.equal(facebookSection(path), "reels", `${path} is a Reels route`);
+  assert.equal(R.shouldBlockUrl(defaults, `https://www.facebook.com${path}`).blocked, true, `${path} must be blocked by default`);
+}
+
+// The video routes belong to Watch: off in the default mode, blocked once Watch is selected.
+for (const path of ["/watch/?v=1", "/video.php?v=1", "/share/v/AbC123/", "/nasa/videos/"]) {
+  const url = `https://www.facebook.com${path}`;
+  assert.equal(facebookSection(path.split("?")[0]), "watch", `${path} is a Watch route`);
+  assert.equal(R.shouldBlockUrl(defaults, url).blocked, false, `${path} is not short-form`);
+  assert.equal(R.shouldBlockUrl(facebookWatch, url).blocked, true, `${path} must follow the Watch choice`);
+}
+
+// Neither share prefix may swallow an ordinary shared post, and a page whose name merely starts
+// with "r" is not a share route.
+assert.equal(facebookSection("/share/p/AbC123/"), null, "a shared post is not a Reel");
+assert.equal(facebookSection("/rabbits/"), null, "a page name is not a share route");
+assert.equal(R.shouldBlockUrl(defaults, "https://www.facebook.com/share/p/AbC123/").blocked, false);
+
 // TikTok utility sections can be explicitly allowed in Advanced settings.
 const utility = R.normalizeSettings({ platforms: { tiktok: { mode: "selected", sections: { feed: true, videos: true, messages: false, upload: false, settings: false } } } });
 assert.equal(R.shouldBlockUrl(utility, "https://www.tiktok.com/").blocked, true);

@@ -646,13 +646,16 @@ assert.match(guardSource, /applySurfaceAttribute/, "the guard must publish which
 // Instagram and Facebook rules: the innermost card around a Reel link, never a wrapper holding
 // another post or the main region, plus the links that sit outside any card.
 for (const selector of [
-  'article:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"])',
-  '[role="article"]:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"])',
-  '[role="listitem"]:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"])',
-  'li:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"])',
+  'article:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])',
+  '[role="article"]:not(:has(article, [role="article"], main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])',
+  '[role="listitem"]:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])',
+  'li:not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])',
   'a[href*="/reel/"]',
   'a[href*="/reels/"]',
-  'a[href$="/reels"]'
+  'a[href$="/reels"]',
+  // Facebook resolves a "/share/r/" link to a Reel, so the hiding path must cover it too, or a
+  // shared Reel stays visible in a feed while the guard refuses to open it.
+  'a[href*="/share/r/"]'
 ]) {
   assert.ok(guardCss.includes(selector), `site_guard.css must cover ${selector}`);
 }

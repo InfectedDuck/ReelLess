@@ -78,8 +78,13 @@
         "https://facebook.com/*", "https://www.facebook.com/*", "https://m.facebook.com/*"
       ],
       sections: [
-        { id: "reels", label: "Reels", shortform: true, paths: ["/reel", "/reels", "/watch/reels"] },
-        { id: "watch", label: "Watch", shortform: false, paths: ["/watch"], patterns: [/^\/[^/]+\/videos(?:\/|$)/] },
+        // "/share/r/" is how a Reel arrives when somebody sends one: Facebook resolves it to the
+        // reel itself, so it has to be recognised here or a shared Reel opens and plays. The
+        // pattern catches a page's Reels tab, which begins with an arbitrary page name.
+        { id: "reels", label: "Reels", shortform: true, paths: ["/reel", "/reels", "/watch/reels", "/share/r"],
+          patterns: [/^\/[^/]+\/reels?(?:\/|$)/] },
+        { id: "watch", label: "Watch", shortform: false, paths: ["/watch", "/video.php", "/share/v"],
+          patterns: [/^\/[^/]+\/videos(?:\/|$)/] },
         { id: "marketplace", label: "Marketplace", shortform: false, paths: ["/marketplace"] }
       ]
     },
