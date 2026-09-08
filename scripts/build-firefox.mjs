@@ -2,8 +2,8 @@
 // maintained separately, so a change to the Chrome manifest cannot silently skip Firefox.
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { toFirefoxManifest, SHARED_FILES } from "./firefox-manifest.mjs";
+import { collectEntries, writeZip, assertStorePackage } from "./zip.mjs";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const dist = path.join(root, "dist");
@@ -24,16 +24,17 @@ for (const file of SHARED_FILES) {
 }
 fs.cpSync(path.join(root, "icons"), path.join(stage, "icons"), { recursive: true });
 
+// Written by the shared writer rather than Compress-Archive: Windows PowerShell 5.1 stores nested
+// entries with backslashes, which AMO's validator rejects as INVALID_XPI_ENTRY.
 fs.rmSync(zipPath, { force: true });
-execFileSync("powershell", [
-  "-ExecutionPolicy", "Bypass", "-NoProfile", "-Command",
-  `Compress-Archive -Path (Join-Path '${stage}' '*') -DestinationPath '${zipPath}' -CompressionLevel Optimal`
-], { stdio: "inherit" });
+writeZip(zipPath, collectEntries(stage, fs.readdirSync(stage).sort()));
 
-// The same root-level check the Chrome package makes: AMO rejects a wrapping directory.
-const staged = fs.readdirSync(stage);
-if (!staged.includes("manifest.json")) throw new Error("manifest.json is not at the package root");
-if (!fs.existsSync(zipPath)) throw new Error("The Firefox archive was not produced");
+// The same root-level checks the Chrome package makes, read back from the archive itself:
+// AMO rejects a wrapping directory and a backslash in any entry name.
+const shipped = assertStorePackage(zipPath);
+for (const file of ["manifest.json", ...SHARED_FILES]) {
+  if (!shipped.includes(file)) throw new Error(`${file} is missing from the Firefox archive`);
+}
 
 console.log(`Firefox package staged at ${stage}`);
 console.log(`Firefox archive written to ${zipPath}`);

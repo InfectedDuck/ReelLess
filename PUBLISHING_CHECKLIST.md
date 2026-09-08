@@ -4,7 +4,7 @@
 
 - `npm run build` validates the extension and writes `dist/reels-blocker.zip` with `manifest.json` at the ZIP root. This one ZIP is the upload for both the Chrome Web Store and Microsoft Edge Add-ons.
 - `npm run submission` runs the same build and copies it into `release/ReelLess-v2.3.0/` as `UPLOAD-THIS-reels-blocker-v2.3.0.zip`, next to the listing images and reference documents. It refuses to overwrite an existing `release/ReelLess-v2.3.0` folder, so remove that folder first when you need a fresh kit.
-- `npm run build:firefox` generates the Firefox manifest from `manifest.json`, stages the same runtime files in `dist/firefox/`, and writes `dist/reelless-firefox.zip` for addons.mozilla.org. The add-on id is `reelless@infectedduck.github.io`, the minimum version is Firefox 128.0, and the package opts in to Firefox for Android.
+- `npm run build:firefox` generates the Firefox manifest from `manifest.json`, stages the same runtime files in `dist/firefox/`, and writes `dist/reelless-firefox.zip` for addons.mozilla.org. The add-on id is `reelless@infectedduck.github.io`, the minimum version is Firefox 140.0 (142.0 on Android, where the required `data_collection_permissions` key is first read), and the package opts in to Firefox for Android. AMO caps the manifest name at 45 characters, so the Firefox manifest ships as `ReelLess: Block Shorts, Reels and TikTok`; every other store uses the name in `manifest.json`. Both packages are written by `scripts/zip.mjs`, which stores entries with forward slashes; Windows PowerShell's `Compress-Archive` writes backslashes, which AMO rejects. Run `npx addons-linter dist/reelless-firefox.zip` before uploading and expect zero errors.
 
 ## Upload
 

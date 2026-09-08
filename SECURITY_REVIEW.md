@@ -37,7 +37,7 @@ No known high-severity or release-blocking security issue remains after the chec
 ### Firefox build
 
 - `scripts/firefox-manifest.mjs` derives the Firefox manifest from `manifest.json`, so permissions, optional host permissions, and content-script matches cannot drift between the two packages; `scripts/test-firefox.mjs` asserts that they are identical.
-- The transform replaces `background.service_worker` with an event page that loads `shared.js` then `service_worker.js`, moves `options_page` to `options_ui`, drops `minimum_chrome_version`, and sets `browser_specific_settings.gecko` to id `reelless@infectedduck.github.io` with `strict_min_version` `128.0`, plus a `gecko_android` opt-in.
+- The transform replaces `background.service_worker` with an event page that loads `shared.js` then `service_worker.js`, moves `options_page` to `options_ui`, drops `minimum_chrome_version`, shortens the name to AMO's 45-character limit, and sets `browser_specific_settings.gecko` to id `reelless@infectedduck.github.io` with `strict_min_version` `140.0` and `data_collection_permissions` `{ required: ["none"] }`, plus a `gecko_android` opt-in at `142.0`. The declaration is truthful: nothing is collected or transmitted, so Firefox shows no consent prompt.
 - `shared.js` aliases `chrome` to the promise-based `browser` namespace only when `browser.runtime.id` exists, so a page-defined `browser` global cannot hijack the alias. `service_worker.js` guards its `importScripts` call, which does not exist on an event page.
 - On Firefox for Android, Settings hides the optional-sites and custom-pages controls, keyed on `runtime.getPlatformInfo` rather than the user-agent string, because Android offers no way to grant that access.
 
