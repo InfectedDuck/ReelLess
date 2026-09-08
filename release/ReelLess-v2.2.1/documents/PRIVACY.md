@@ -2,7 +2,7 @@
 
 Effective: September 1, 2026
 
-Block Shorts & Reels: YouTube, Instagram, TikTok, Facebook — ReelLess does not collect, transmit, sell, or share personal information. It has no analytics, advertising, tracking pixels, remote code, accounts, or external network requests.
+ReelLess — Shorts & Reels Blocker does not collect, transmit, sell, or share personal information. It has no analytics, advertising, tracking pixels, remote code, accounts, or external network requests.
 
 ## What the extension processes
 

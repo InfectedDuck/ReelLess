@@ -1,4 +1,4 @@
-importScripts("shared.js");
+if (typeof importScripts === "function") importScripts("shared.js");
 
 const {
   SETTINGS_KEY,
@@ -18,9 +18,17 @@ const {
 
 const REFRESH_ALARM = "reelless-refresh";
 const SCRIPT_PREFIX = "reelless-advanced-";
+const ALLOWED_PAUSE_DURATIONS = new Set(["5", "15", "30", "tomorrow"]);
 const recentEvents = new Map();
 let statsQueue = Promise.resolve();
 let applyQueue = Promise.resolve();
+
+// Runs storage read-modify-write work one at a time while still handing each caller its own result.
+function enqueue(work) {
+  const task = statsQueue.then(work, work);
+  statsQueue = task.then(() => undefined, () => undefined);
+  return task;
+}
 
 async function readState() {
   const stored = await chrome.storage.local.get([SETTINGS_KEY, LEGACY_SETTINGS_KEY, STATS_KEY, META_KEY]);
@@ -114,7 +122,7 @@ async function recordBlockAttempt(message) {
   if (eventId && recentEvents.has(eventId)) return (await readState()).stats;
   if (eventId) recentEvents.set(eventId, now);
 
-  statsQueue = statsQueue.then(async () => {
+  return enqueue(async () => {
     const stored = await chrome.storage.local.get([STATS_KEY, META_KEY]);
     const stats = normalizeStats(stored[STATS_KEY], new Date(now));
     stats.todayCount += 1;
@@ -124,23 +132,37 @@ async function recordBlockAttempt(message) {
       meta.lastActiveDay = stats.localDay;
       meta.activeDayCount += 1;
     }
-    const updates = { [STATS_KEY]: stats, [META_KEY]: meta };
-    if (reviewEligible(meta, stats, new Date(now))) {
-      meta.reviewShown = true;
-    }
-    await chrome.storage.local.set(updates);
+    if (reviewEligible(meta, stats, new Date(now))) meta.reviewShown = true;
+    await chrome.storage.local.set({ [STATS_KEY]: stats, [META_KEY]: meta });
     return stats;
   });
-  return statsQueue;
+}
+
+// Counts today once, the first time a guarded page loads with protection actually in force.
+// This is what lets the review prompt reach people for whom nothing needed blocking.
+async function markActiveDay() {
+  return enqueue(async () => {
+    const stored = await chrome.storage.local.get([STATS_KEY, META_KEY]);
+    const stats = normalizeStats(stored[STATS_KEY]);
+    const meta = normalizeMeta(stored[META_KEY]);
+    if (meta.lastActiveDay === stats.localDay) return meta;
+    meta.lastActiveDay = stats.localDay;
+    meta.activeDayCount += 1;
+    if (reviewEligible(meta, stats, new Date())) meta.reviewShown = true;
+    await chrome.storage.local.set({ [STATS_KEY]: stats, [META_KEY]: meta });
+    return meta;
+  });
 }
 
 async function setPause(duration) {
   const { settings } = await readState();
   if (settings.ultimate.enabled) return { settings, locked: true };
-  settings.pausedUntil = pauseUntil(duration, new Date());
+  const selectedDuration = String(duration);
+  if (!ALLOWED_PAUSE_DURATIONS.has(selectedDuration)) return { settings, locked: false, invalid: true };
+  settings.pausedUntil = pauseUntil(selectedDuration, new Date());
   await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
   await applySettings();
-  return { settings, locked: false };
+  return { settings, locked: false, invalid: false };
 }
 
 chrome.runtime.onInstalled.addListener((details) => {
@@ -174,9 +196,11 @@ if (chrome.permissions && chrome.permissions.onAdded) {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const task = (async () => {
+    if (!_sender || _sender.id !== chrome.runtime.id) return { ok: false, error: "unauthorized" };
     if (!message || typeof message !== "object") return { ok: false };
     if (message.type === "applySettings") return { ok: true, settings: await applySettings() };
     if (message.type === "recordBlockAttempt") return { ok: true, stats: await recordBlockAttempt(message) };
+    if (message.type === "markActiveDay") return { ok: true, meta: await markActiveDay() };
     if (message.type === "pause") return { ok: true, ...(await setPause(message.duration)) };
     if (message.type === "getState") return { ok: true, ...(await readState()) };
     if (message.type === "dismissReview") {

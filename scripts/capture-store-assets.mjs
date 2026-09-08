@@ -5,7 +5,9 @@ import { chromium } from "playwright-core";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const output = path.join(root, "store-assets");
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), "reelless-assets-"));
+// A signed-in profile can be supplied for the frames that need an account. Without it the script
+// captures every signed-out surface and skips the rest rather than substituting a mock-up.
+const profile = process.env.REELLESS_PROFILE || fs.mkdtempSync(path.join(os.tmpdir(), "reelless-assets-"));
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "reelless-captures-"));
 const executablePath = process.env.REELLESS_CHROME_PATH || chromium.executablePath();
 let context;
@@ -48,6 +50,55 @@ async function screenshotUrl(url, routePattern, body, destination, viewport = { 
   await page.close();
 }
 
+// Captures a live page rather than a served fixture. Returns the scroll offset it settled on, so
+// the matching "after" capture can be taken from exactly the same position and the two frames
+// differ only by what ReelLess removed.
+async function capturePage(url, destination, { viewport = { width: 1280, height: 800 }, scrollTo = null, settle = 5000 } = {}) {
+  const page = await context.newPage();
+  await page.setViewportSize(viewport);
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+  await page.waitForTimeout(settle);
+  let offset = 0;
+  if (scrollTo === null) {
+    // Bring a real short-form block in the results body into view. The persistent sidebar also
+    // links to /shorts, and scrolling to that would leave the frame at the top of the page showing
+    // nothing the extension visibly changes.
+    const anchor = page.locator(
+      "ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts], #contents a[href*='/shorts/'], main a[href*='/reel/'], main a[href*='/reels/']"
+    ).first();
+    if (await anchor.count()) {
+      await anchor.scrollIntoViewIfNeeded().catch(() => {});
+      await page.waitForTimeout(800);
+      // Lift the shelf off the very top edge so the frame reads as a page, not a crop.
+      await page.evaluate(() => window.scrollBy(0, -120));
+      await page.waitForTimeout(300);
+    }
+    offset = await page.evaluate(() => window.scrollY);
+  } else {
+    offset = scrollTo;
+    await page.evaluate((y) => window.scrollTo(0, y), scrollTo);
+    await page.waitForTimeout(600);
+  }
+  await page.addStyleTag({ content: "::-webkit-scrollbar{display:none}" }).catch(() => {});
+  await page.screenshot({ path: destination });
+  await page.close();
+  return offset;
+}
+
+// True when a live capture is usable. A login wall is not a screenshot of this product working.
+async function reachableSignedOut(url, marker) {
+  const page = await context.newPage();
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForTimeout(4000);
+    return await page.locator(marker).count() > 0;
+  } catch (_error) {
+    return false;
+  } finally {
+    await page.close();
+  }
+}
+
 async function compose(destination, title, panels, widths) {
   const page = await context.newPage();
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -57,6 +108,8 @@ async function compose(destination, title, panels, widths) {
   await page.screenshot({ path: destination });
   await page.close();
 }
+
+const skipped = [];
 
 try {
   fs.mkdirSync(output, { recursive: true });
@@ -74,27 +127,44 @@ try {
   const popup = await context.newPage();
   await popup.setViewportSize({ width: 1280, height: 800 });
   await popup.goto(`chrome-extension://${id}/popup.html`);
-  await popup.addStyleTag({ content: "html,body{width:1280px!important;height:800px!important;overflow:hidden!important}body{display:grid;place-items:center;background:#1f2421}.shell{width:370px;transform:scale(1.24);box-shadow:0 10px 28px rgba(0,0,0,.22);border:1px solid #3c4540;border-radius:9px;background:#1f2421}" });
+  // Scaled to occupy the frame. At 1.24 the popup sat on roughly a third of the canvas, so most of
+  // the thumbnail a shopper sees was empty background.
+  await popup.addStyleTag({ content: "html,body{width:1280px!important;height:800px!important;overflow:hidden!important}body{display:grid;place-items:center;background:#1f2421}.shell{width:370px;transform:scale(1.92);box-shadow:0 14px 40px rgba(0,0,0,.3);border:1px solid #3c4540;border-radius:9px;background:#1f2421}" });
   await popup.screenshot({ path: path.join(output, "01-popup.png") });
   await popup.close();
 
-  // 2. Real YouTube guard fixture before and after enabling protection.
-  const ytBody = `<meta charset="utf-8"><style>${fixtureStyle}</style><div class="bar"><span class="brand">YouTube fixture</span><span class="search">Search</span></div><main><div class="layout"><nav class="nav"><a href="/">Home</a><a href="/shorts/abc">Shorts</a><a href="/feed/subscriptions">Subscriptions</a></nav><section class="feed"><h1>Recommended</h1><ytd-reel-shelf-renderer><div class="shorts-row"><a href="/shorts/a" class="short">Quick clip</a><a href="/shorts/b" class="short">One more</a><a href="/shorts/c" class="short">Keep scrolling</a></div></ytd-reel-shelf-renderer><div class="reelless-note">Shorts shelf removed - useful videos remain below</div><div class="card"><div class="thumb"></div><strong>Long-form study session</strong></div></section></div></main>`;
+  // 2. Real YouTube, before and after. Search results are used rather than the home feed, because a
+  //    signed-out home page carries no recommendations at all and so has no Shorts to remove.
+  const YT_SEARCH = "https://www.youtube.com/results?search_query=lofi+study";
   const ytBefore = path.join(scratch, "yt-before.png");
   const ytAfter = path.join(scratch, "yt-after.png");
-  await setState(worker, false);
-  await screenshotUrl("https://www.youtube.com/watch?v=fixture", "https://www.youtube.com/**", ytBody.replace('<div class="reelless-note">Shorts shelf removed - useful videos remain below</div>', ""), ytBefore);
-  await setState(worker, true);
-  await screenshotUrl("https://www.youtube.com/watch?v=fixture", "https://www.youtube.com/**", ytBody, ytAfter);
-  await compose(path.join(output, "02-youtube-before-after.png"), "YouTube without the Shorts detour", [{ label: "Before", path: ytBefore }, { label: "With ReelLess", path: ytAfter }]);
+  if (await reachableSignedOut(YT_SEARCH, "ytd-video-renderer")) {
+    const ytViewport = { width: 860, height: 900 };
+    await setState(worker, false);
+    const offset = await capturePage(YT_SEARCH, ytBefore, { viewport: ytViewport });
+    await setState(worker, true);
+    await capturePage(YT_SEARCH, ytAfter, { viewport: ytViewport, scrollTo: offset });
+    await compose(path.join(output, "02-youtube-before-after.png"), "Real YouTube results, without the Shorts", [{ label: "Before", path: ytBefore }, { label: "With ReelLess", path: ytAfter }]);
+    console.log("02-youtube-before-after.png captured from the live site.");
+  } else {
+    skipped.push("02-youtube-before-after.png (YouTube search was not reachable)");
+  }
 
-  // 3. Actual Instagram and Facebook guards on representative desktop fixtures.
+  // 3. Instagram and Facebook show a login wall to a signed-out browser, so this frame can only be
+  //    captured from a profile that is already signed in. It is skipped rather than faked.
   const ig = path.join(scratch, "instagram.png");
   const fb = path.join(scratch, "facebook.png");
-  const socialBody = (name, reelPath) => `<style>${fixtureStyle}</style><div class="bar"><span class="brand">${name} fixture</span><span class="search">Search</span></div><main><div class="layout"><nav class="nav"><a href="/">Home</a><a href="${reelPath}">Reels</a><a href="/messages">Messages</a></nav><section class="feed"><h1>Your feed</h1><article class="card"><a href="${reelPath}"><div class="short">Reel preview</div></a></article><div class="reelless-note">Reels entry points removed locally</div><article class="card"><div class="thumb"></div><strong>Normal feed post remains</strong></article></section></div></main>`;
-  await screenshotUrl("https://www.instagram.com/", "https://www.instagram.com/**", socialBody("Instagram", "/reel/fixture"), ig);
-  await screenshotUrl("https://www.facebook.com/", "https://www.facebook.com/**", socialBody("Facebook", "/reels/fixture"), fb);
-  await compose(path.join(output, "03-instagram-facebook.png"), "Reels links disappear; useful sections remain", [{ label: "Instagram", path: ig }, { label: "Facebook", path: fb }]);
+  const igReady = await reachableSignedOut("https://www.instagram.com/", "article, [role='article']");
+  const fbReady = await reachableSignedOut("https://www.facebook.com/", "[role='feed'], [role='article']");
+  if (igReady && fbReady) {
+    await setState(worker, true);
+    await capturePage("https://www.instagram.com/", ig, { viewport: { width: 640, height: 720 } });
+    await capturePage("https://www.facebook.com/", fb, { viewport: { width: 640, height: 720 } });
+    await compose(path.join(output, "03-instagram-facebook.png"), "Reels links disappear; useful sections remain", [{ label: "Instagram", path: ig }, { label: "Facebook", path: fb }]);
+    console.log("03-instagram-facebook.png captured from the live sites.");
+  } else {
+    skipped.push("03-instagram-facebook.png (Instagram and Facebook require a signed-in profile; see REELLESS_PROFILE below)");
+  }
 
   // 4. Actual Advanced settings with optional access language visible.
   const advanced = await context.newPage();
@@ -108,7 +178,13 @@ try {
 
   // 5. Actual focus screen beside the actual counted-attempt popup.
   const focus = path.join(scratch, "focus.png");
-  await screenshotUrl("https://www.tiktok.com/", "https://www.tiktok.com/**", `<style>${fixtureStyle}</style><main><h1>TikTok fixture</h1></main>`, focus, { width: 820, height: 720 });
+  const tiktokLive = await reachableSignedOut("https://www.tiktok.com/", "a[href*='/video/'], [data-e2e]");
+  if (tiktokLive) {
+    await capturePage("https://www.tiktok.com/", focus, { viewport: { width: 820, height: 720 } });
+  } else {
+    skipped.push("05-focus-count.png used a fixture because TikTok was not reachable");
+    await screenshotUrl("https://www.tiktok.com/", "https://www.tiktok.com/**", `<style>${fixtureStyle}</style><main><h1>TikTok</h1></main>`, focus, { width: 820, height: 720 });
+  }
   const miniPopup = path.join(scratch, "popup.png");
   const countPage = await context.newPage();
   await countPage.setViewportSize({ width: 460, height: 720 });
@@ -134,7 +210,15 @@ try {
   await marquee.close();
 
   fs.copyFileSync(path.join(output, "01-popup.png"), path.join(output, "screenshot-1280x800.png"));
-  console.log("Created five verified 1280×800 listing screenshots, a 440×280 promo tile, and a 1400×560 marquee tile.");
+  console.log("Wrote the 1280×800 listing screenshots, the 440×280 promo tile, and the 1400×560 marquee tile.");
+  if (skipped.length) {
+    console.log("");
+    console.log("NOT regenerated, previous files left in place:");
+    for (const item of skipped) console.log(`  - ${item}`);
+    console.log("");
+    console.log("To capture the signed-in frames, point REELLESS_PROFILE at a Chrome profile directory");
+    console.log("that is already logged in to Instagram and Facebook, then run this script again.");
+  }
 } finally {
   if (context) await context.close();
   if (profile.startsWith(os.tmpdir())) fs.rmSync(profile, { recursive: true, force: true });

@@ -1,4 +1,4 @@
-# ReelLess v2.3.0 Manual Release Matrix
+# ReelLess v2.2.1 Manual Release Matrix
 
 Automated fixtures and Chrome-for-Testing smoke checks cover the repeatable core paths. Complete this matrix with real logged-in and logged-out desktop accounts before Web Store submission.
 
@@ -23,14 +23,6 @@ Expected specifics:
 - TikTok feed/video navigation shows the ReelLess focus screen; allowed Advanced utility sections remain reachable.
 - Counts rise once for a deliberate blocked attempt, not for hidden cards or repeated DOM mutations.
 
-## Entry points in feeds
-
-- On YouTube home with the default **Hidden** choice, scroll through several screens of the feed. Shorts shelves must not flash into view while scrolling, the page must stay responsive, and no Shorts heading or empty shelf band should remain.
-- Switch YouTube to **Visible, can't be opened** from the core card. Existing tabs should show Shorts shelves again without a reload; clicking a Short must open its `/watch?v={id}` page and the Shorts tab must show the focus screen with a **Stay here** action that closes it.
-- Repeat for Instagram and Facebook Reels: cards stay visible in keep mode, and clicking a Reel returns to the feed and counts once.
-- Confirm the detailed Advanced row and the core card always show the same choice, and that the choice disappears for a site set to Off or Block all.
-- Under Ultimate Lock the entry-point selects are disabled and the locked choice is enforced.
-
 ## Ultimate Lock
 
 - Confirm Instagram Direct and Messenger conversations, including their videos, remain outside ReelLess protection and are not modified or counted.
@@ -52,7 +44,7 @@ Expected specifics:
 - Deny an Advanced platform request: its mode must remain Off and no extension error should appear.
 - Grant an Advanced site, confirm its dynamic guard, disable it, and confirm the access and guard are removed.
 - Add a custom domain/path, deny and then grant access, verify block-only behavior, then remove it.
-- Update a profile containing v1, v4, or v5 settings and confirm schedule, platform selections, and custom entries are preserved in v6 `settingsV2`; the retired Direct-video setting must disappear and every platform must default to hidden entry points.
+- Update a profile containing v1 or v4 settings and confirm schedule, platform selections, and custom entries are preserved in v5 `settingsV2`; the retired Direct-video setting must disappear.
 
 ## Release gate
 

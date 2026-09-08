@@ -1,11 +1,19 @@
 (function (root) {
   "use strict";
 
+  // Firefox exposes both namespaces, but only browser.* returns promises. Its chrome.* is
+  // callback-only, so every `await chrome.storage.local.get(...)` in this extension would resolve
+  // to undefined without throwing, and the guard would silently run on defaults forever. shared.js
+  // is the first script in every context, so aliasing here fixes all call sites at once.
+  if (typeof browser !== "undefined" && browser.runtime && browser.runtime.id) {
+    root.chrome = browser;
+  }
+
   const SETTINGS_KEY = "settingsV2";
   const LEGACY_SETTINGS_KEY = "settings";
   const STATS_KEY = "statsV1";
   const META_KEY = "metaV1";
-  const SCHEMA_VERSION = 5;
+  const SCHEMA_VERSION = 7;
   const CUSTOM_RULE_START = 10000;
   const MAX_CUSTOM_ENTRIES = 50;
   const CORE_PLATFORM_IDS = ["youtube", "instagram", "facebook", "tiktok"];
@@ -29,6 +37,13 @@
     { value: "all", label: "Block all" },
     { value: "off", label: "Off" }
   ];
+  // How blocked entry points (Shorts shelves, Reel cards, feed links) are treated inside pages that
+  // remain available. "hide" removes them from feeds; "keep" leaves them visible but stops them opening.
+  const ENTRY_POINT_MODES = [
+    { value: "hide", label: "Hidden" },
+    { value: "keep", label: "Visible, can't be opened" }
+  ];
+  const DEFAULT_ENTRY_POINTS = "hide";
   const APPEARANCE_MODES = ["dark", "light", "system"];
 
   const PLATFORMS = [
@@ -37,7 +52,13 @@
       homeUrl: "https://www.youtube.com/",
       hosts: ["youtube.com"],
       permissionPatterns: ["https://youtube.com/*", "https://www.youtube.com/*", "https://m.youtube.com/*"],
-      sections: [{ id: "shorts", label: "Shorts", shortform: true, paths: ["/shorts", "/feed/shorts"] }]
+      sections: [{ id: "shorts", label: "Shorts", shortform: true, paths: ["/shorts", "/feed/shorts"], patterns: [/^\/@[^/]+\/shorts(?:\/|$)/] }],
+      surfaces: [
+        { id: "homeFeed", label: "Home feed recommendations" },
+        { id: "sidebar", label: "Up next sidebar" },
+        { id: "comments", label: "Comments" },
+        { id: "endScreen", label: "End screen suggestions" }
+      ]
     },
     {
       id: "instagram", label: "Instagram", core: true, defaultMode: "shortform",
@@ -45,21 +66,20 @@
       hosts: ["instagram.com"],
       permissionPatterns: ["https://instagram.com/*", "https://www.instagram.com/*", "https://m.instagram.com/*"],
       sections: [
-        { id: "reels", label: "Reels", shortform: true, paths: ["/reel", "/reels"] },
+        { id: "reels", label: "Reels", shortform: true, paths: ["/reel", "/reels"], patterns: [/^\/[^/]+\/reels?(?:\/|$)/] },
         { id: "explore", label: "Explore", shortform: false, paths: ["/explore"] }
       ]
     },
     {
       id: "facebook", label: "Facebook", core: true, defaultMode: "shortform",
       homeUrl: "https://www.facebook.com/",
-      hosts: ["facebook.com", "messenger.com"],
+      hosts: ["facebook.com"],
       permissionPatterns: [
-        "https://facebook.com/*", "https://www.facebook.com/*", "https://m.facebook.com/*",
-        "https://messenger.com/*", "https://www.messenger.com/*"
+        "https://facebook.com/*", "https://www.facebook.com/*", "https://m.facebook.com/*"
       ],
       sections: [
         { id: "reels", label: "Reels", shortform: true, paths: ["/reel", "/reels", "/watch/reels"] },
-        { id: "watch", label: "Watch", shortform: false, paths: ["/watch"] },
+        { id: "watch", label: "Watch", shortform: false, paths: ["/watch"], patterns: [/^\/[^/]+\/videos(?:\/|$)/] },
         { id: "marketplace", label: "Marketplace", shortform: false, paths: ["/marketplace"] }
       ]
     },
@@ -70,7 +90,7 @@
       permissionPatterns: ["https://tiktok.com/*", "https://www.tiktok.com/*", "https://m.tiktok.com/*"],
       sections: [
         { id: "feed", label: "For You / Following", shortform: true, paths: ["/", "/foryou", "/following", "/explore"] },
-        { id: "videos", label: "Videos", shortform: true, paths: ["/video", "/@"] },
+        { id: "videos", label: "Videos", shortform: true, paths: ["/video"], patterns: [/^\/@[^/]+(?:\/|$)/] },
         { id: "messages", label: "Messages", shortform: false, paths: ["/messages"] },
         { id: "upload", label: "Upload", shortform: false, paths: ["/upload"] },
         { id: "settings", label: "Settings", shortform: false, paths: ["/setting", "/settings"] }
@@ -160,6 +180,15 @@
     return PLATFORMS.find((platform) => platform.id === id) || null;
   }
 
+  // Every surface starts off. They are opt-in because hiding more of a page is also the most
+  // common way an extension in this category breaks something the person wanted.
+  function surfaceDefaults(platform) {
+    return (platform.surfaces || []).reduce((result, surface) => {
+      result[surface.id] = false;
+      return result;
+    }, {});
+  }
+
   function sectionDefaults(platform) {
     return platform.sections.reduce((result, section) => {
       result[section.id] = Boolean(section.shortform);
@@ -169,9 +198,13 @@
 
   function defaultPlatformSettings() {
     return PLATFORMS.reduce((result, platform) => {
-      result[platform.id] = { mode: platform.defaultMode, sections: sectionDefaults(platform) };
+      result[platform.id] = { mode: platform.defaultMode, entryPoints: DEFAULT_ENTRY_POINTS, sections: sectionDefaults(platform), surfaces: surfaceDefaults(platform) };
       return result;
     }, {});
+  }
+
+  function normalizeEntryPoints(value) {
+    return ENTRY_POINT_MODES.some((mode) => mode.value === value) ? value : DEFAULT_ENTRY_POINTS;
   }
 
   function getDefaultSettings() {
@@ -203,9 +236,9 @@
   }
 
   function normalizePlatformSetting(platform, value) {
-    const defaults = { mode: platform.defaultMode, sections: sectionDefaults(platform) };
+    const defaults = { mode: platform.defaultMode, entryPoints: DEFAULT_ENTRY_POINTS, sections: sectionDefaults(platform), surfaces: surfaceDefaults(platform) };
     if (typeof value === "string") {
-      return { mode: PLATFORM_MODES.some((mode) => mode.value === value) ? value : defaults.mode, sections: defaults.sections };
+      return { mode: PLATFORM_MODES.some((mode) => mode.value === value) ? value : defaults.mode, entryPoints: defaults.entryPoints, sections: defaults.sections, surfaces: defaults.surfaces };
     }
     if (!value || typeof value !== "object") {
       return defaults;
@@ -215,9 +248,16 @@
       result[section.id] = typeof rawSections[section.id] === "boolean" ? rawSections[section.id] : defaults.sections[section.id];
       return result;
     }, {});
+    const rawSurfaces = value.surfaces && typeof value.surfaces === "object" ? value.surfaces : {};
+    const surfaces = (platform.surfaces || []).reduce((result, surface) => {
+      result[surface.id] = typeof rawSurfaces[surface.id] === "boolean" ? rawSurfaces[surface.id] : defaults.surfaces[surface.id];
+      return result;
+    }, {});
     return {
       mode: PLATFORM_MODES.some((mode) => mode.value === value.mode) ? value.mode : defaults.mode,
-      sections
+      entryPoints: normalizeEntryPoints(value.entryPoints),
+      sections,
+      surfaces
     };
   }
 
@@ -347,12 +387,15 @@
     return PLATFORMS.find((platform) => hostMatches(url.hostname, platform)) || null;
   }
 
+  // Some entry points cannot be written as a path prefix, because they begin with an arbitrary
+  // handle: a channel's Shorts tab, a profile's Reels tab, a TikTok profile. Those sections carry
+  // regexes, which are tried before the prefix list so a handle route wins over a generic prefix.
   function sectionForUrl(platform, input) {
     let url;
     try { url = input instanceof URL ? input : new URL(input); } catch (_error) { return null; }
     const path = url.pathname.toLowerCase();
-    if (platform.id === "youtube" && /^\/@[^/]+\/shorts(?:\/|$)/.test(path)) return platform.sections.find((item) => item.id === "shorts");
-    if (platform.id === "tiktok" && /^\/@[^/]+\/video\//.test(path)) return platform.sections.find((item) => item.id === "videos");
+    const byPattern = platform.sections.find((section) => (section.patterns || []).some((pattern) => pattern.test(path)));
+    if (byPattern) return byPattern;
     return platform.sections.find((section) => section.paths.some((prefix) => prefix === "/" ? path === "/" : path === prefix || path.startsWith(`${prefix}/`))) || null;
   }
 
@@ -368,6 +411,25 @@
     if (!section) return { blocked: false, platform, section };
     if (platformSetting.mode === "shortform") return { blocked: Boolean(section.shortform), platform, section, reason: "shortform" };
     return { blocked: Boolean(platformSetting.sections[section.id]), platform, section, reason: "selected" };
+  }
+
+  // True when blocked entry points on this platform should be removed from pages that stay available.
+  // In "keep" mode the click and navigation guards still stop them from opening.
+  function hidesEntryPoints(settings, platform) {
+    const source = settings && settings.schemaVersion === SCHEMA_VERSION ? settings : normalizeSettings(settings);
+    const id = typeof platform === "string" ? platform : platform && platform.id;
+    const platformSetting = source.platforms[id];
+    return Boolean(platformSetting) && platformSetting.mode !== "off" && platformSetting.entryPoints !== "keep";
+  }
+
+  // The surfaces switched on for a platform right now, or none when it is off or out of schedule.
+  function activeSurfaces(settings, platform) {
+    const source = settings && settings.schemaVersion === SCHEMA_VERSION ? settings : normalizeSettings(settings);
+    const id = typeof platform === "string" ? platform : platform && platform.id;
+    const definition = platformById(id);
+    const setting = source.platforms[id];
+    if (!definition || !setting || setting.mode === "off" || !isScheduleActive(source)) return [];
+    return (definition.surfaces || []).filter((surface) => setting.surfaces[surface.id]).map((surface) => surface.id);
   }
 
   function createUltimateSettings(settings, profile) {
@@ -402,7 +464,7 @@
     const checked = validateEntry(entry);
     if (!checked.ok) return null;
     const host = checked.value.split("/")[0];
-    return `*://${host}/*`;
+    return `https://${host}/*`;
   }
 
   function buildDynamicRules(settings, permittedEntries, date) {
@@ -418,7 +480,7 @@
         priority: 1,
         action: { type: "block" },
         condition: {
-          regexFilter: `^https?://${host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[/?#]|$)`,
+          regexFilter: `^https://${host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[/?#]|$)`,
           resourceTypes: ["main_frame", "sub_frame"]
         }
       };
@@ -446,16 +508,19 @@
   function reviewEligible(meta, stats, date) {
     const safeMeta = normalizeMeta(meta);
     const safeStats = normalizeStats(stats, date);
-    return !safeMeta.reviewDismissed && !safeMeta.reviewShown && safeStats.totalCount >= 10 && safeMeta.activeDayCount >= 7;
+    // Deliberately not gated on blocked attempts. Those only accrue when someone tries to open
+    // something, so the previous rule asked relapsing users for reviews and silently skipped
+    // everyone the product was working for. Seven days of active protection is the evidence.
+    return !safeMeta.reviewDismissed && !safeMeta.reviewShown && safeMeta.activeDayCount >= 7;
   }
 
   const api = {
     SETTINGS_KEY, LEGACY_SETTINGS_KEY, STATS_KEY, META_KEY, SCHEMA_VERSION,
     CUSTOM_RULE_START, MAX_CUSTOM_ENTRIES, CORE_PLATFORM_IDS,
-    SCHEDULE_PRESETS, PLATFORM_MODES, APPEARANCE_MODES, ULTIMATE_PROFILES, PLATFORMS,
+    SCHEDULE_PRESETS, PLATFORM_MODES, ENTRY_POINT_MODES, APPEARANCE_MODES, ULTIMATE_PROFILES, PLATFORMS,
     platformById, getDefaultSettings, normalizeSettings, normalizeStats, normalizeMeta,
     validateEntry, permissionPatternForEntry, localDay, isScheduleActive,
-    platformForUrl, sectionForUrl, shouldBlockUrl, buildDynamicRules,
+    platformForUrl, sectionForUrl, shouldBlockUrl, hidesEntryPoints, activeSurfaces, buildDynamicRules,
     createUltimateSettings, releaseUltimateSettings, pauseUntil, youtubeWatchUrl, reviewEligible
   };
 

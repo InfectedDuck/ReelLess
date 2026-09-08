@@ -21,7 +21,7 @@
     <section class="panel core-section" aria-labelledby="coreTitle">
       <div class="section-title"><div><span class="eyebrow">Start here</span><h2 id="coreTitle">Core protection</h2><p>Four defaults that remove the main short-form loops.</p></div><span class="section-note">Ready after install</span></div>
       <div id="corePlatforms" class="platform-grid"></div>
-      <p class="core-footnote">Turn a site off at any time. Your choices stay in Chrome.</p>
+      <p class="core-footnote">Turn a site off at any time. For each site, choose whether Shorts and Reels are hidden from feeds or stay visible but cannot be opened. Your choices stay in Chrome.</p>
     </section>
 
     <section class="panel appearance" aria-labelledby="appearanceTitle">
@@ -42,17 +42,19 @@
           <div class="form-row"><label>Schedule<select id="schedulePreset"></select></label><label class="custom-time">Start<input id="customStart" type="time"></label><label class="custom-time">End<input id="customEnd" type="time"></label></div>
         </section>
 
-        <section class="subsection" aria-labelledby="moreSitesTitle">
+        <p id="mobileNotice" class="mobile-notice" hidden>Firefox for Android has no screen for granting or withdrawing access to extra sites, so optional sites and custom pages are unavailable here. The four core sites work as normal.</p>
+
+        <section id="moreSitesSection" class="subsection" aria-labelledby="moreSitesTitle">
           <div><span class="section-kicker">Optional access</span><h2 id="moreSitesTitle">More sites, when you choose</h2><p>Open a site to choose its mode. Chrome asks before ReelLess can run there.</p></div>
           <div id="advancedPlatforms" class="advanced-platforms"></div>
         </section>
 
         <section class="subsection" aria-labelledby="coreModesTitle">
-          <div><span class="section-kicker">Detailed modes</span><h2 id="coreModesTitle">Fine-tune core protection</h2><p>Keep the defaults above, or choose exactly which sections stay available.</p></div>
+          <div><span class="section-kicker">Detailed modes</span><h2 id="coreModesTitle">Fine-tune core protection</h2><p>Keep the defaults above, or choose exactly which sections stay available and how their entry points appear in feeds.</p></div>
           <div id="detailedCorePlatforms" class="advanced-platforms core-modes"></div>
         </section>
 
-        <section class="subsection" aria-labelledby="customTitle">
+        <section id="customSection" class="subsection" aria-labelledby="customTitle">
           <div><span class="section-kicker">Custom pages</span><h2 id="customTitle">Add a personal boundary</h2><p>Use a domain or path. Access is requested only for the entry you add.</p></div>
           <div><form id="customForm" class="custom-form"><label for="customEntry">Domain or path</label><div><input id="customEntry" placeholder="example.com/reels" autocomplete="off"><button type="submit">Add boundary</button></div><p id="customError" class="error" role="alert"></p></form><ul id="customList" class="custom-list"></ul></div>
         </section>
@@ -61,8 +63,20 @@
 
     <section id="ultimatePanel" class="panel ultimate" aria-labelledby="ultimateTitle">
       <div class="ultimate-heading"><span class="eyebrow">Optional commitment</span><h2 id="ultimateTitle">Ultimate Lock</h2><p id="ultimateDescription">Lock protection to remove ReelLess pause and setting changes. Choose what stays blocked before you turn it on.</p></div>
-      <div id="ultimateSetup" class="ultimate-flow"><label>What should Ultimate Lock enforce?<select id="ultimateProfile"><option value="block_shortform">Block all core short-form content</option><option value="keep_current">Keep my current platform choices</option></select></label><label>Type <code>I ACCEPT THE LOCK</code> to confirm<input id="ultimateConfirmPhrase" autocomplete="off" spellcheck="false" placeholder="I ACCEPT THE LOCK"></label><p class="friction-note">This forces protection on and disables pausing, platform switches, schedules, and custom-list changes in ReelLess. Removing it requires one uninterrupted minute.</p><p class="friction-note">It cannot stop Chrome from disabling, uninstalling, or clearing the extension.</p><button id="enableUltimate" class="danger-button" type="button">Enable Ultimate Lock</button></div>
-      <div id="ultimateRelease" class="ultimate-flow" hidden><p class="lock-active">Ultimate Lock is active. Protection is on and the selected profile is fixed.</p><label>Choose the action<select id="unlockAction"><option value="">Choose an action</option><option value="remove_ultimate">Remove Ultimate Lock</option></select></label><label>Type <code>REMOVE ULTIMATE</code> to start<input id="unlockPhrase" autocomplete="off" spellcheck="false" placeholder="REMOVE ULTIMATE"></label><button id="startUnlock" type="button">Start one-minute wait</button><p id="unlockTimer" class="friction-note" role="status">Keep this Settings page open and focused for one minute.</p><button id="confirmUnlock" class="danger-button" type="button" disabled>Remove Ultimate Lock</button></div>
+      <div id="ultimateSetup" class="ultimate-flow"><label>What should Ultimate Lock enforce?<select id="ultimateProfile"><option value="block_shortform">Block all core short-form content</option><option value="keep_current">Keep my current platform choices</option></select></label><label>Type <code>I ACCEPT THE LOCK</code> to confirm<input id="ultimateConfirmPhrase" autocomplete="off" spellcheck="false" placeholder="I ACCEPT THE LOCK"></label><p class="friction-note">This forces protection on and disables pausing, platform switches, schedules, and custom-list changes in ReelLess. Removing it requires a private reflection, three active check-ins, and at least one focused minute.</p><p class="friction-note">It cannot stop Chrome from disabling, uninstalling, or clearing the extension.</p><button id="enableUltimate" class="danger-button" type="button">Enable Ultimate Lock</button></div>
+      <div id="ultimateRelease" class="ultimate-flow" hidden>
+        <p class="lock-active">Ultimate Lock is active. Protection is on and the selected profile is fixed.</p>
+        <label>Choose the action<select id="unlockAction"><option value="">Choose an action</option><option value="remove_ultimate">Remove Ultimate Lock</option></select></label>
+        <label>Type <code>REMOVE ULTIMATE</code> to continue<input id="unlockPhrase" autocomplete="off" spellcheck="false" placeholder="REMOVE ULTIMATE"></label>
+        <label>Why are you choosing to remove the lock?<textarea id="unlockReason" minlength="20" maxlength="240" rows="3" autocomplete="off" spellcheck="true" placeholder="Write at least 20 characters."></textarea><small class="private-note">Private and temporary. ReelLess never saves this text.</small></label>
+        <button id="startUnlock" type="button">Begin focused release</button>
+        <div id="unlockRitual" class="unlock-ritual" hidden>
+          <div id="unlockProgress" class="unlock-progress" aria-label="Unlock checkpoints"><span></span><span></span><span></span></div>
+          <p id="unlockTimer" class="friction-note" role="status" aria-live="polite">Keep this Settings page open and focused for one minute.</p>
+          <button id="unlockCheckpoint" class="checkpoint-button" type="button" hidden></button>
+        </div>
+        <button id="confirmUnlock" class="danger-button" type="button" disabled>Remove Ultimate Lock</button>
+      </div>
       <p id="ultimateFeedback" class="error" role="alert"></p>
     </section>
 

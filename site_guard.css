@@ -1,3 +1,74 @@
+/* Hiding short-form entry points is done by the style engine, not by script.
+
+   The browser resolves these rules in the same pass that decides what to paint, so a Short is
+   never laid out and never appears for a frame. Script can only react after a card has been
+   painted, which is what produced the glimpse while scrolling or hovering near a Shorts row.
+
+   The gate defaults to hiding: with no attribute set, these rules apply. site_guard.js stamps
+   "keep" or "off" once it has read the settings. Defaulting this way means a page cannot flash
+   Shorts before the settings arrive; the only delay possible is Shorts staying hidden a moment
+   longer than needed on a site the user has turned off, which is the harmless direction. */
+
+html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
+  /* Whole Shorts shelves, including their heading. */
+  ytd-reel-shelf-renderer,
+  ytd-rich-shelf-renderer[is-shorts],
+  ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts]),
+  /* Search results wrap the heading and cards together, but the same element also backs
+     ordinary grids, so it is only hidden when it holds nothing but Shorts. */
+  grid-shelf-view-model:has(a[href*="/shorts/"]):not(:has(a[href*="/watch"])),
+  /* Individual cards anywhere a Shorts link can appear. */
+  ytd-rich-item-renderer:has(a[href*="/shorts/"]),
+  ytd-video-renderer:has(a[href*="/shorts/"]),
+  ytd-grid-video-renderer:has(a[href*="/shorts/"]),
+  ytd-compact-video-renderer:has(a[href*="/shorts/"]),
+  ytm-shorts-lockup-view-model:has(a[href*="/shorts/"]),
+  ytm-shorts-lockup-view-model-v2:has(a[href*="/shorts/"]),
+  /* Navigation into Shorts: sidebar entries, the mini sidebar, and channel tabs. */
+  ytd-guide-entry-renderer:has(a[href^="/shorts"]),
+  ytd-mini-guide-entry-renderer:has(a[href^="/shorts"]),
+  yt-tab-shape:has(a[href*="/shorts"]),
+  tp-yt-paper-tab:has(a[href*="/shorts"])
+) {
+  display: none !important;
+}
+
+/* Optional YouTube surfaces. Each is opt-in and off until switched on, so the attribute is absent
+   by default and these rules do nothing. Unlike the Shorts rules above, none of these block
+   navigation: the page stays reachable, it is just quieter. */
+
+/* The recommendation grid on the home page. */
+html[data-reelless-surfaces~="homeFeed"] :is(
+  ytd-browse[page-subtype="home"] ytd-rich-grid-renderer,
+  ytd-browse[page-subtype="home"] #contents.ytd-rich-grid-renderer
+) {
+  display: none !important;
+}
+
+/* Related videos beside a watch page. #related is targeted rather than the whole #secondary
+   column, so live chat on a stream survives. */
+html[data-reelless-surfaces~="sidebar"] :is(
+  ytd-watch-flexy #related,
+  ytd-watch-next-secondary-results-renderer
+) {
+  display: none !important;
+}
+
+html[data-reelless-surfaces~="comments"] :is(
+  ytd-comments#comments,
+  ytd-item-section-renderer#comments
+) {
+  display: none !important;
+}
+
+/* Cards and the grid of suggestions painted over the player as a video ends. */
+html[data-reelless-surfaces~="endScreen"] :is(
+  .ytp-endscreen-content,
+  .ytp-ce-element
+) {
+  display: none !important;
+}
+
 [data-reelless-hidden="true"] {
   display: none !important;
 }

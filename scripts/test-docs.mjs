@@ -25,9 +25,14 @@ assert.match(css, /\.journey-track/, "Styles should include the guided walkthrou
 assert.match(css, /\.platform-board/, "Styles should include the platform matrix");
 assert.match(css, /\.closing/, "Styles should include the combined closing section");
 assert.match(optionsCss, /\.advanced-summary-action/, "Settings styles should include the Advanced disclosure action");
-assert.ok(new JSDOM(optionsHtml).window.document.querySelector("details.advanced"), "Settings should retain a progressive Advanced workspace");
+const optionsDocument = new JSDOM(optionsHtml).window.document;
+assert.ok(optionsDocument.querySelector("details.advanced"), "Settings should retain a progressive Advanced workspace");
+assert.equal(optionsDocument.querySelector("#unlockReason")?.getAttribute("minlength"), "20", "Ultimate release should require a private reflection");
+assert.equal(optionsDocument.querySelectorAll("#unlockProgress span").length, 3, "Ultimate release should show three active checkpoints");
+assert.ok(optionsDocument.querySelector("#unlockCheckpoint"), "Ultimate release should require active timed check-ins");
 assert.ok(new JSDOM(popupHtml).window.document.querySelector(".status-card"), "The popup should lead with a clear protection state");
 assert.equal(new JSDOM(onboardingHtml).window.document.querySelectorAll(".steps article").length, 3, "Onboarding should be a three-step first-run flow");
 assert.doesNotMatch(runtimeSources, /direct_videos|shouldBlockDirectVideos|reelless-direct-blocked/i, "Retired Direct-message behavior must not appear in runtime sources");
+assert.doesNotMatch(runtimeSources, /item\.innerHTML\s*=/, "Custom user entries must be rendered with safe DOM text assignment");
 
 console.log("Landing-page structure and responsive component styles passed.");

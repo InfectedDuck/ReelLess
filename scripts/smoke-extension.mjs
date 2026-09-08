@@ -66,6 +66,11 @@ try {
   await settings.waitForSelector("text=Core protection");
   assert.equal(await settings.locator("#corePlatforms .platform-card").count(), 4);
   assert.equal(await settings.locator("#advancedPlatforms .advanced-platform").count(), 7);
+  // The Android gate sets the hidden attribute. Check the attribute rather than visibility, which
+  // would also be false simply because the Advanced workspace starts collapsed.
+  assert.equal(await settings.locator("#moreSitesSection").getAttribute("hidden"), null, "optional sites stay available on desktop");
+  assert.equal(await settings.locator("#customSection").getAttribute("hidden"), null, "custom pages stay available on desktop");
+  assert.notEqual(await settings.locator("#mobileNotice").getAttribute("hidden"), null, "the Android notice must stay hidden on desktop");
   assert.equal(await settings.locator("details.advanced").getAttribute("open"), null, "Advanced controls should start collapsed");
   assert.equal(await settings.locator(".advanced-summary-action").count(), 1, "Advanced controls should have a visible disclosure affordance");
   assert.equal(await settings.locator(".advanced-chevron").count(), 1, "Advanced controls should show a state chevron");
@@ -95,10 +100,69 @@ try {
     body: `<main id="main"><ytd-reel-shelf-renderer id="shorts"><a href="/shorts/abc">Shorts</a></ytd-reel-shelf-renderer><a id="lesson" href="/watch?v=lesson">Lesson</a></main>`
   }));
   await youtube.goto("https://www.youtube.com/watch?v=fixture");
-  await youtube.waitForFunction(() => document.querySelector("#shorts")?.dataset.reellessHidden === "true");
+  // Assert the outcome, not the mechanism: on a browser with :has() the stylesheet hides this
+  // before it is ever painted and no attribute is written at all.
+  await youtube.waitForFunction(() => {
+    const shelf = document.querySelector("#shorts");
+    return shelf && shelf.getClientRects().length === 0;
+  });
+  assert.equal(await youtube.locator("#lesson").isVisible(), true, "ordinary videos must stay");
   assert.equal(await youtube.locator("#main").getAttribute("data-reelless-hidden"), null);
+  assert.equal(
+    await youtube.evaluate(() => document.documentElement.dataset.reellessMode),
+    "hide",
+    "the stylesheet gate should be in hide mode"
+  );
+  assert.equal(
+    await youtube.evaluate(() => document.querySelectorAll("[data-reelless-hidden]").length),
+    0,
+    "with :has() available the script should not be marking elements at all"
+  );
   await youtube.goto("https://www.youtube.com/shorts/directfixture");
   await youtube.waitForURL("https://www.youtube.com/watch?v=directfixture");
+
+  // Keep mode leaves the Shorts shelf visible but still converts an attempt to open a Short.
+  await settings.bringToFront();
+  assert.equal(await settings.locator("#corePlatforms select[data-entry-points]").count(), 4, "each core card offers the entry-point choice");
+  assert.equal(await settings.locator('#corePlatforms [data-entry-choice="tiktok"]').isHidden(), true, "Block all leaves no feed entry points to configure");
+  assert.equal(await settings.locator('#corePlatforms select[data-entry-points="youtube"]').inputValue(), "hide", "hiding is the default");
+  await settings.selectOption('#corePlatforms select[data-entry-points="youtube"]', "keep");
+  await settings.waitForTimeout(300);
+  assert.equal(await settings.locator('#detailedCorePlatforms select[data-entry-points="youtube"]').inputValue(), "keep", "the detailed row follows the core card");
+
+  // Optional page surfaces: present, off by default, and offered only where a platform declares them.
+  const surfaceBoxes = settings.locator('#detailedCorePlatforms input[data-surface][data-platform="youtube"]');
+  assert.equal(await surfaceBoxes.count(), 4, "YouTube should offer its four optional surfaces");
+  for (let i = 0; i < 4; i += 1) {
+    assert.equal(await surfaceBoxes.nth(i).isChecked(), false, "every surface must start off");
+  }
+  assert.equal(await settings.locator('#detailedCorePlatforms input[data-surface][data-platform="instagram"]').count(), 0, "platforms without surfaces show no surface controls");
+  await surfaceBoxes.first().check();
+  await settings.waitForTimeout(400);
+  assert.equal(
+    await settings.evaluate(async () => (await chrome.storage.local.get("settingsV2")).settingsV2.platforms.youtube.surfaces.homeFeed),
+    true,
+    "toggling a surface should persist"
+  );
+  await surfaceBoxes.first().uncheck();
+  await settings.waitForTimeout(400);
+  await youtube.goto("https://www.youtube.com/watch?v=fixture");
+  await youtube.waitForTimeout(300);
+  assert.equal(await youtube.locator("#shorts").isVisible(), true, "keep mode shows the Shorts shelf");
+  assert.equal(
+    await youtube.evaluate(() => document.documentElement.dataset.reellessMode),
+    "keep",
+    "the stylesheet gate should be released in keep mode"
+  );
+  await youtube.locator("#shorts a").click();
+  await youtube.waitForURL("https://www.youtube.com/watch?v=abc");
+  await settings.selectOption('#corePlatforms select[data-entry-points="youtube"]', "hide");
+  await settings.waitForTimeout(300);
+  await youtube.goto("https://www.youtube.com/watch?v=fixture");
+  await youtube.waitForFunction(() => {
+    const shelf = document.querySelector("#shorts");
+    return shelf && shelf.getClientRects().length === 0;
+  });
 
   const instagram = await context.newPage();
   observePage(instagram);
@@ -118,6 +182,10 @@ try {
   assert.equal(await instagramDirect.locator("#friendVideo").getAttribute("data-reelless-direct-video"), null, "Direct-message videos must remain outside ReelLess protection");
   assert.equal(await instagramDirect.locator("#conversation").getAttribute("data-reelless-hidden"), null, "direct conversation layout must remain");
   assert.equal(await instagramDirect.locator("#reelless-direct-blocked-notice").count(), 0);
+
+  // A profile's Reels tab returns to that profile rather than the generic feed.
+  await instagram.goto("https://www.instagram.com/nasa/reels/");
+  await instagram.waitForURL("https://www.instagram.com/nasa/");
 
   const facebook = await context.newPage();
   observePage(facebook);
@@ -164,6 +232,25 @@ try {
   await tiktok.reload();
   await tiktok.waitForSelector("#reelless-focus-screen");
   assert.equal(await tiktok.locator('[data-action="pause"]').count(), 0, "Ultimate Lock removes the focus-screen pause action");
+
+  await settings.bringToFront();
+  await settings.selectOption("#unlockAction", "remove_ultimate");
+  await settings.fill("#unlockPhrase", "REMOVE ULTIMATE");
+  const privateReason = "I need to change my protection choices today.";
+  await settings.fill("#unlockReason", privateReason);
+  await settings.locator("#startUnlock").click();
+  assert.equal(await settings.locator("#unlockRitual").isVisible(), true, "Ultimate removal should start the focused release ritual");
+  assert.equal(await settings.locator("#unlockReason").isDisabled(), true, "The private reflection should be fixed during the ritual");
+  await settings.waitForSelector("#unlockCheckpoint:not([hidden])", { timeout: 20000 });
+  assert.match(await settings.locator("#unlockCheckpoint").textContent(), /Checkpoint 1 of 3/);
+  await settings.locator("#unlockCheckpoint").click();
+  assert.match(await settings.locator("#unlockTimer").textContent(), /2 check-ins left/);
+  const storedDuringUnlock = await worker.evaluate(async () => chrome.storage.local.get());
+  assert.equal(JSON.stringify(storedDuringUnlock).includes(privateReason), false, "The unlock reflection must never be saved");
+  await settings.evaluate(() => window.dispatchEvent(new Event("blur")));
+  assert.equal(await settings.locator("#unlockRitual").isHidden(), true, "Losing focus must reset and hide the release ritual");
+  assert.equal(await settings.locator("#startUnlock").isEnabled(), true, "A reset should require the release ritual to be started again");
+  assert.equal(await settings.locator("#confirmUnlock").isDisabled(), true, "Losing focus must keep Ultimate Lock active");
 
   const runtimeState = await worker.evaluate(async () => {
     const rules = await chrome.declarativeNetRequest.getDynamicRules();

@@ -1,12 +1,12 @@
-# Chrome Web Store Listing — ReelLess v2.3.0
+# Chrome Web Store Listing — ReelLess v2.2.1
 
 ## Name
 
-Block Shorts & Reels: YouTube, Instagram, TikTok, Facebook — ReelLess
+ReelLess — Shorts & Reels Blocker
 
 ## Summary
 
-Blocks YouTube Shorts, Instagram and Facebook Reels, and TikTok. Shorts links open in the normal player. Offline, no account.
+Remove YouTube Shorts, Instagram and Facebook Reels, and TikTok distractions while keeping useful pages available.
 
 ## Detailed description
 
@@ -20,8 +20,6 @@ Four calm defaults work immediately:
 - TikTok: replace feed and video surfaces with a quiet focus screen.
 
 The popup shows protection status, local today/all-time blocked-attempt counts, four platform switches, and quick pauses for 5, 15, or 30 minutes or until tomorrow. Choose Dark, Light, or Use Chrome setting from Settings.
-
-Optional YouTube controls can also quieten the home feed, the Up next sidebar, comments, and end-screen suggestions. They are off until you turn them on, and none of them blocks a page.
 
 Advanced controls progressively reveal schedules, selected/full-site modes for seven additional platforms, TikTok utility-section exceptions, and custom blocked domains. Additional site access is requested only when the user enables that site.
 

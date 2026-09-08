@@ -4,11 +4,15 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $manifestPath = Join-Path $root "manifest.json"
 if (-not (Test-Path -LiteralPath $manifestPath)) { throw "Missing manifest.json" }
-$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+# Read as UTF-8 explicitly: Windows PowerShell defaults to ANSI for a file without a BOM,
+# which turns the em dash in the store name into three characters and breaks the length checks.
+$manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 if ($manifest.manifest_version -ne 3) { throw "manifest_version must be 3" }
-if ($manifest.version -ne "2.2.0") { throw "Release version must be 2.2.0" }
-if ($manifest.name -notlike "ReelLess*") { throw "Unexpected extension name" }
+if ($manifest.version -ne "2.3.0") { throw "Release version must be 2.3.0" }
+if ($manifest.name -notlike "*ReelLess*") { throw "Unexpected extension name" }
+if ($manifest.name.Length -gt 75) { throw "Store name exceeds 75 characters: $($manifest.name.Length)" }
+if ($manifest.description.Length -gt 132) { throw "Store summary exceeds 132 characters: $($manifest.description.Length)" }
 
 $allowedPermissions = @("alarms", "declarativeNetRequestWithHostAccess", "scripting", "storage")
 foreach ($permission in @($manifest.permissions)) {
@@ -19,15 +23,15 @@ foreach ($permission in $allowedPermissions) {
 }
 if ($manifest.PSObject.Properties.Name -contains "host_permissions") { throw "Install-time host_permissions are not allowed" }
 if ($manifest.PSObject.Properties.Name -contains "declarative_net_request") { throw "A disabled static ruleset must not be shipped" }
-if (@($manifest.optional_host_permissions).Count -ne 1 -or $manifest.optional_host_permissions[0] -ne "*://*/*") {
-  throw "Custom domains must be declared as optional access and requested as exact origins"
+if ($manifest.PSObject.Properties.Name -contains "externally_connectable") { throw "External messaging must not be enabled" }
+if (@($manifest.optional_host_permissions).Count -ne 1 -or $manifest.optional_host_permissions[0] -ne "https://*/*") {
+  throw "Custom domains must be declared as optional HTTPS access and requested as exact origins"
 }
 
 $expectedCoreMatches = @(
   "https://www.youtube.com/*", "https://m.youtube.com/*", "https://youtube.com/*",
   "https://www.instagram.com/*", "https://m.instagram.com/*", "https://instagram.com/*",
   "https://www.facebook.com/*", "https://m.facebook.com/*", "https://facebook.com/*",
-  "https://www.messenger.com/*", "https://messenger.com/*",
   "https://www.tiktok.com/*", "https://m.tiktok.com/*", "https://tiktok.com/*"
 )
 $scripts = @($manifest.content_scripts)
@@ -88,7 +92,13 @@ foreach ($file in $runtimeScripts) {
   if ($LASTEXITCODE -ne 0) { throw "JavaScript syntax check failed: $file" }
   $content = Get-Content -LiteralPath (Join-Path $root $file) -Raw
   if ($content -match "\b(fetch|XMLHttpRequest|WebSocket|sendBeacon)\s*\(") { throw "External request API found in runtime file: $file" }
+  if ($content -match "\beval\s*\(|new\s+Function\s*\(") { throw "Arbitrary code execution pattern found in runtime file: $file" }
   if ($content -match "direct_videos|shouldBlockDirectVideos|reelless-direct-blocked") { throw "Retired Direct-message behavior remains in runtime file: $file" }
+}
+
+foreach ($file in @("popup.html", "options.html", "onboarding.html", "privacy.html")) {
+  $content = Get-Content -LiteralPath (Join-Path $root $file) -Raw
+  if ($content -match '<(script|link)[^>]+(src|href)\s*=\s*["'']https?://') { throw "Remote executable resource found in extension page: $file" }
 }
 
 $textFiles = @("README.md", "PRIVACY.md", "STORE_LISTING.md", "docs/index.html", "docs/privacy.html", "docs/support.html")

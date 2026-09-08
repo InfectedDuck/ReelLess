@@ -18,7 +18,7 @@ Track only Web Store users, installs/uninstalls, ratings, reviews, and support r
 
 ## Days 15–30 — launch to 75 users
 
-- Publish the Web Store listing, GitHub `v2.2.0` release, and GitHub Pages privacy/support site.
+- Publish the Web Store listing, GitHub `v2.2.1` release, and GitHub Pages privacy/support site.
 - Publish one accurate 30-second before/after demo using the real extension.
 - Use deferred Web Store publishing so the listing, site, and release go live together.
 

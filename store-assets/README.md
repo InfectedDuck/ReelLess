@@ -1,6 +1,6 @@
 # ReelLess Store Assets
 
-The listing set is generated from the real v2.2.0 extension UI with a temporary Chrome for Testing profile.
+The listing set is generated from the real v2.2.1 extension UI with a temporary Chrome for Testing profile.
 
 - `01-popup.png` — popup, four core switches, pauses, and local counts
 - `02-youtube-before-after.png` — YouTube fixture before and after the real guard runs

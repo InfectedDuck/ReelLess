@@ -1,4 +1,4 @@
-# ReelLess — Shorts & Reels Blocker
+# Block Shorts & Reels: YouTube, Instagram, TikTok, Facebook — ReelLess
 
 ReelLess removes YouTube Shorts, Instagram and Facebook Reels, and TikTok distractions while keeping useful pages available. It is a free, open-source, account-free, ad-free, and telemetry-free Manifest V3 Chrome extension.
 
@@ -19,6 +19,7 @@ ReelLess removes YouTube Shorts, Instagram and Facebook Reels, and TikTok distra
 ## Product behavior
 
 - YouTube Shorts entry points are hidden; `/shorts/{id}` opens as `/watch?v={id}`.
+- Each site can instead keep Shorts, Reels, or feed links visible while still stopping them from opening. Choose **Hidden** or **Visible, can't be opened** on the core card or in Advanced.
 - Instagram and Facebook Reels entry points are hidden; direct Reel visits return to the normal feed.
 - Independent Instagram and Facebook controls can also hide and pause inline Direct/Messenger videos, without removing the conversation layout.
 - TikTok feed/video surfaces show a calm local focus screen. Selected utility sections can be allowed in Advanced settings.
@@ -31,7 +32,7 @@ The four core sites are bundled. Advanced sites and custom domains request exact
 
 Settings includes an opt-in **Ultimate Lock** for someone who wants extra friction against disabling protection. Choose either **Block all core short-form content** or **Keep my current platform choices**, type `I ACCEPT THE LOCK`, and confirm. It forces protection on, keeps the schedule always active, and removes the extension's normal pause and settings controls.
 
-To remove it, select **Remove Ultimate Lock**, type `REMOVE ULTIMATE`, and keep the Settings page focused for one uninterrupted minute before confirming. Leaving, reloading, or defocusing Settings resets the wait. This is deliberate in-extension friction only: Chrome or a device administrator can still disable, uninstall, or clear an extension.
+To remove it, select **Remove Ultimate Lock**, type `REMOVE ULTIMATE`, write a private reason, and complete three timed check-ins during at least one focused minute. The reason is never saved. Leaving, reloading, minimizing, or defocusing Settings resets the entire release ritual. This is deliberate in-extension friction only: Chrome or a device administrator can still disable, uninstall, or clear an extension.
 
 ## Development checks
 

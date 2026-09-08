@@ -1,19 +1,26 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { JSDOM, VirtualConsole } from "jsdom";
 
 const sharedSource = fs.readFileSync(new URL("../shared.js", import.meta.url), "utf8");
 const guardSource = fs.readFileSync(new URL("../site_guard.js", import.meta.url), "utf8");
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+// jsdom cannot navigate, so redirects surface as "not implemented" reports; every other error is a failure.
+const unexpectedErrors = [];
 
 async function fixture({ url, html, settings }) {
   const messages = [];
-  const dom = new JSDOM(html, { url, runScripts: "outside-only", pretendToBeVisual: true });
+  const settingsListeners = [];
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on("jsdomError", (error) => {
+    if (!/not implemented: navigation/i.test(error.message)) unexpectedErrors.push(error);
+  });
+  const dom = new JSDOM(html, { url, runScripts: "outside-only", pretendToBeVisual: true, virtualConsole });
   dom.window.HTMLMediaElement.prototype.pause = () => {};
   dom.window.chrome = {
     storage: {
       local: { get: async () => ({ settingsV2: settings }) },
-      onChanged: { addListener() {} }
+      onChanged: { addListener(listener) { settingsListeners.push(listener); } }
     },
     runtime: {
       sendMessage: async (message) => { messages.push(message); return { ok: true }; },
@@ -23,7 +30,23 @@ async function fixture({ url, html, settings }) {
   dom.window.eval(sharedSource);
   dom.window.eval(guardSource);
   await wait(180);
-  return { dom, document: dom.window.document, messages };
+  const changeSettings = async (next) => {
+    settingsListeners.forEach((listener) => listener({ settingsV2: { newValue: next } }, "local"));
+    await wait(180);
+  };
+  return { dom, document: dom.window.document, messages, changeSettings };
+}
+
+function withEntryPoints(base, platformId, entryPoints) {
+  const next = JSON.parse(JSON.stringify(base));
+  next.platforms[platformId].entryPoints = entryPoints;
+  return next;
+}
+
+function observeHiddenFlips(dom, node) {
+  const flips = [];
+  new dom.window.MutationObserver((records) => flips.push(...records)).observe(node, { attributes: true, attributeFilter: ["data-reelless-hidden"] });
+  return flips;
 }
 
 const defaults = (await import("../shared.js")).default.getDefaultSettings();
@@ -177,4 +200,247 @@ for (const platformFixture of advancedFixtures) {
   result.dom.window.close();
 }
 
-console.log("Core and optional platform DOM, mutation, safety-ancestor, and focus-screen tests passed.");
+// YouTube home: the whole Shorts shelf (heading included) disappears while neighbouring videos stay,
+// and links are never marked on the DOM, so a busy feed pays no attribute churn per link.
+const homeShelf = `<main id="main"><ytd-rich-grid-renderer><div id="contents">
+  <ytd-rich-item-renderer id="video-1"><a href="/watch?v=one">One</a></ytd-rich-item-renderer>
+  <ytd-rich-section-renderer id="shorts-section"><div id="content"><ytd-rich-shelf-renderer is-shorts><div id="rich-shelf-header"><span id="title">Shorts</span></div><div id="shelf-contents"><ytd-rich-item-renderer id="short-1"><ytm-shorts-lockup-view-model-v2><a href="/shorts/s1">S1</a></ytm-shorts-lockup-view-model-v2></ytd-rich-item-renderer><ytd-rich-item-renderer id="short-2"><a href="/shorts/s2">S2</a></ytd-rich-item-renderer></div></ytd-rich-shelf-renderer></div></ytd-rich-section-renderer>
+  <ytd-rich-item-renderer id="video-2"><a href="/watch?v=two">Two</a></ytd-rich-item-renderer>
+  <ytd-video-renderer id="recycled"><a id="recycled-link" href="/shorts/r1">Recycled</a></ytd-video-renderer>
+  <ytd-video-renderer id="replaced"><a href="/shorts/r2">Replaced</a></ytd-video-renderer>
+</div></ytd-rich-grid-renderer></main>`;
+result = await fixture({ url: "https://www.youtube.com/", settings: defaults, html: homeShelf });
+assert.equal(result.document.getElementById("shorts-section").dataset.reellessHidden, "true", "the Shorts shelf should be hidden as one unit");
+assert.equal(result.document.getElementById("short-1").hasAttribute("data-reelless-hidden"), false, "cards inside a hidden shelf need no marker of their own");
+assert.equal(result.document.getElementById("video-1").hasAttribute("data-reelless-hidden"), false);
+assert.equal(result.document.getElementById("video-2").hasAttribute("data-reelless-hidden"), false);
+assert.equal(result.document.getElementById("recycled").dataset.reellessHidden, "true");
+assert.equal(result.document.getElementById("main").hasAttribute("data-reelless-hidden"), false);
+assert.equal(result.document.querySelectorAll("[data-reelless-checked]").length, 0, "links must not be marked on the DOM");
+
+// Unrelated href churn (re-sets to the same value, changes on ordinary videos) must not make hidden
+// Shorts flash back into view: the hidden marker never toggles.
+const flips = observeHiddenFlips(result.dom, result.document.getElementById("shorts-section"));
+for (let round = 0; round < 5; round += 1) {
+  result.document.querySelector("#video-1 a").setAttribute("href", "/watch?v=one");
+  result.document.querySelector("#video-2 a").setAttribute("href", `/watch?v=two-${round}`);
+  result.document.getElementById("contents").appendChild(result.document.createElement("span"));
+  await wait(40);
+}
+await wait(200);
+assert.equal(flips.length, 0, "hidden Shorts must not be unhidden and re-hidden while the feed changes");
+assert.equal(result.document.getElementById("shorts-section").dataset.reellessHidden, "true");
+assert.equal(result.document.getElementById("video-2").hasAttribute("data-reelless-hidden"), false);
+
+// A hidden card that a framework recycles for an ordinary video is shown again, whether its link
+// changes in place or its contents are replaced.
+result.document.getElementById("recycled-link").setAttribute("href", "/watch?v=recycled");
+result.document.getElementById("replaced").innerHTML = `<a href="/watch?v=replaced">Replaced video</a>`;
+await wait(200);
+assert.equal(result.document.getElementById("recycled").hasAttribute("data-reelless-hidden"), false, "a recycled card should reappear");
+assert.equal(result.document.getElementById("replaced").hasAttribute("data-reelless-hidden"), false, "a card with replaced contents should reappear");
+assert.equal(result.document.getElementById("shorts-section").dataset.reellessHidden, "true");
+
+// Switching YouTube to keep mode at runtime reveals every hidden entry point without a reload.
+await result.changeSettings(withEntryPoints(defaults, "youtube", "keep"));
+assert.equal(result.document.querySelectorAll("[data-reelless-hidden]").length, 0, "keep mode should show the Shorts shelf again");
+await result.changeSettings(defaults);
+assert.equal(result.document.getElementById("shorts-section").dataset.reellessHidden, "true", "returning to hide mode should hide the shelf again");
+assert.equal(result.messages.filter((message) => message.type === "recordBlockAttempt").length, 0, "hidden cards never count as attempts");
+result.dom.window.close();
+
+// Keep mode: Shorts stay visible in feeds, but opening one is still intercepted and converted.
+const keepYoutube = withEntryPoints(defaults, "youtube", "keep");
+result = await fixture({
+  url: "https://www.youtube.com/",
+  settings: keepYoutube,
+  html: `<main id="main"><ytd-reel-shelf-renderer id="shorts"><a id="short-link" href="/shorts/abc">Shorts</a></ytd-reel-shelf-renderer><ytd-guide-entry-renderer id="guide"><a id="shorts-tab" href="/shorts">Shorts tab</a></ytd-guide-entry-renderer><ytd-rich-item-renderer id="normal"><a href="/watch?v=lesson">Lesson</a></ytd-rich-item-renderer></main>`
+});
+assert.equal(result.document.querySelectorAll("[data-reelless-hidden]").length, 0, "keep mode must not hide any entry point");
+assert.equal(shared.shouldBlockUrl(keepYoutube, "https://www.youtube.com/shorts/abc").blocked, true, "keep mode still blocks the destination");
+const shortLink = result.document.getElementById("short-link");
+assert.equal(shortLink.dispatchEvent(new result.dom.window.MouseEvent("click", { bubbles: true, cancelable: true })), false, "opening a visible Short must be intercepted");
+assert.equal(result.messages.filter((message) => message.type === "recordBlockAttempt").length, 1, "a deliberate click on a visible Short counts once");
+assert.equal(result.document.getElementById("reelless-focus-screen"), null, "a Short with an id converts to the watch page instead of showing the screen");
+
+// A blocked click that has no watch equivalent shows the focus screen, which stays until dismissed.
+const shortsTab = result.document.getElementById("shorts-tab");
+assert.equal(shortsTab.dispatchEvent(new result.dom.window.MouseEvent("click", { bubbles: true, cancelable: true })), false);
+assert.ok(result.document.getElementById("reelless-focus-screen"), "the Shorts tab click should show the focus screen");
+await wait(250);
+assert.ok(result.document.getElementById("reelless-focus-screen"), "the click screen must survive later passes while the page is unchanged");
+const dismiss = result.document.querySelector('#reelless-focus-screen [data-action="dismiss"]');
+assert.ok(dismiss, "a click screen offers a way to stay on the current page");
+dismiss.dispatchEvent(new result.dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+assert.equal(result.document.getElementById("reelless-focus-screen"), null, "Stay here should close the click screen");
+assert.equal(result.messages.filter((message) => message.type === "recordBlockAttempt").length, 2);
+result.dom.window.close();
+
+// Direct navigation screens are not pinned and carry no Stay here action.
+result = await fixture({ url: "https://www.tiktok.com/", settings: defaults, html: `<main><h1>TikTok fixture</h1></main>` });
+assert.ok(result.document.getElementById("reelless-focus-screen"));
+assert.equal(result.document.querySelector('#reelless-focus-screen [data-action="dismiss"]'), null, "a blocked page cannot simply be dismissed");
+result.dom.window.close();
+
+// Keep mode on Instagram leaves Reel cards in place while the click guard still redirects.
+result = await fixture({
+  url: "https://www.instagram.com/",
+  settings: withEntryPoints(defaults, "instagram", "keep"),
+  html: `<main role="main" id="main"><div role="list"><div role="listitem" id="reel-card"><a id="reel-link" href="/reel/xyz">Reel</a></div><div role="listitem" id="photo-card"><a href="/p/photo">Photo</a></div></div></main>`
+});
+assert.equal(result.document.getElementById("reel-card").hasAttribute("data-reelless-hidden"), false);
+assert.equal(result.document.getElementById("reel-link").dispatchEvent(new result.dom.window.MouseEvent("click", { bubbles: true, cancelable: true })), false);
+assert.equal(result.messages.filter((message) => message.type === "recordBlockAttempt").length, 1);
+result.dom.window.close();
+
+// Search results wrap the Shorts heading and its cards in grid-shelf-view-model. Hiding only the
+// cards leaves an orphaned "Shorts" title, which is what the store screenshot exposed.
+result = await fixture({
+  url: "https://www.youtube.com/results?search_query=lofi",
+  settings: defaults,
+  html: `<main id="main"><div id="contents">
+    <ytd-video-renderer id="normal-1"><a href="/watch?v=one">One</a></ytd-video-renderer>
+    <grid-shelf-view-model id="search-shorts"><h2 id="shorts-heading">Shorts</h2>
+      <ytm-shorts-lockup-view-model-v2 id="s1"><a href="/shorts/a">A</a></ytm-shorts-lockup-view-model-v2>
+      <ytm-shorts-lockup-view-model-v2 id="s2"><a href="/shorts/b">B</a></ytm-shorts-lockup-view-model-v2>
+    </grid-shelf-view-model>
+    <ytd-video-renderer id="normal-2"><a href="/watch?v=two">Two</a></ytd-video-renderer>
+  </div></main>`
+});
+assert.equal(result.document.getElementById("search-shorts").dataset.reellessHidden, "true", "the search Shorts shelf should be hidden with its heading");
+assert.equal(result.document.getElementById("normal-1").hasAttribute("data-reelless-hidden"), false);
+assert.equal(result.document.getElementById("normal-2").hasAttribute("data-reelless-hidden"), false);
+result.dom.window.close();
+
+// A grid that mixes Shorts with ordinary videos must lose only the Shorts, never the whole shelf.
+result = await fixture({
+  url: "https://www.youtube.com/results?search_query=lofi",
+  settings: defaults,
+  html: `<main id="main"><div id="contents"><grid-shelf-view-model id="mixed">
+    <ytd-video-renderer id="keep"><a href="/watch?v=keep">Keep</a></ytd-video-renderer>
+    <ytd-video-renderer id="drop"><a href="/shorts/c">Drop</a></ytd-video-renderer>
+  </grid-shelf-view-model></div></main>`
+});
+assert.equal(result.document.getElementById("mixed").hasAttribute("data-reelless-hidden"), false, "a mixed grid must not be hidden whole");
+assert.equal(result.document.getElementById("drop").dataset.reellessHidden, "true");
+assert.equal(result.document.getElementById("keep").hasAttribute("data-reelless-hidden"), false);
+result.dom.window.close();
+
+// A long infinite-scroll session pushes new cards past FULL_SCAN_LIMIT anchors. A full scan only
+// sweeps the first 4000 anchors in document order, so newly inserted content must be evaluated on
+// its own and never discarded just because a full scan lands in the same coalesced pass.
+const longFeed = Array.from({ length: 4200 }, (_, index) =>
+  `<ytd-rich-item-renderer><a href="/watch?v=v${index}">V${index}</a></ytd-rich-item-renderer>`).join("");
+result = await fixture({
+  url: "https://www.youtube.com/",
+  settings: defaults,
+  html: `<main id="main"><div id="feed">${longFeed}</div></main>`
+});
+assert.ok(result.document.querySelectorAll("a[href]").length > 4000, "the fixture must exceed the full-scan cap");
+const lateShelf = result.document.createElement("ytd-rich-section-renderer");
+lateShelf.id = "late-shorts";
+lateShelf.innerHTML = `<ytd-rich-shelf-renderer is-shorts><a href="/shorts/late">Late Short</a></ytd-rich-shelf-renderer>`;
+result.document.getElementById("feed").appendChild(lateShelf);
+// Force a full scan into the same pass as the insertion — this is what used to discard it.
+result.dom.window.dispatchEvent(new result.dom.window.Event("yt-navigate-finish"));
+await wait(400);
+assert.equal(
+  result.document.getElementById("late-shorts").dataset.reellessHidden,
+  "true",
+  "a Shorts shelf added beyond the full-scan cap must still be hidden"
+);
+result.dom.window.close();
+
+// Instagram rewrites its address as reels scroll past. Answering that with a real navigation
+// reloads the feed and throws the reader to the top, so the address is put back instead.
+result = await fixture({
+  url: "https://www.instagram.com/",
+  settings: defaults,
+  html: `<main role="main" id="main"><article id="post"><a href="/p/photo">Photo</a></article></main>`
+});
+assert.equal(result.document.getElementById("reelless-focus-screen"), null, "the feed itself is not blocked");
+const startingCount = result.messages.filter((m) => m.type === "recordBlockAttempt").length;
+result.dom.window.history.pushState({}, "", "/reel/scrolledpast/");
+assert.equal(result.dom.window.location.pathname, "/reel/scrolledpast/");
+// jsdom has no Navigation API, so this exercises the slower fallback: the periodic sweep noticing
+// an address that changed with no accompanying event and no DOM mutation.
+await wait(1500);
+assert.equal(result.dom.window.location.pathname, "/", "the address must be restored to the page that was allowed");
+assert.equal(result.document.getElementById("post"), result.document.querySelector("#post"), "the feed must survive untouched");
+assert.equal(
+  result.messages.filter((m) => m.type === "recordBlockAttempt").length,
+  startingCount,
+  "an address rewritten by the site is not a deliberate attempt and must not be counted"
+);
+result.dom.window.close();
+
+// Arriving directly on a Reel is a real visit, so it still redirects rather than being restored.
+result = await fixture({
+  url: "https://www.instagram.com/reel/direct/",
+  settings: defaults,
+  html: `<main role="main"><h1>Reel</h1></main>`
+});
+assert.equal(
+  result.messages.filter((m) => m.type === "recordBlockAttempt").length,
+  1,
+  "a direct visit to a Reel is a deliberate attempt and counts once"
+);
+result.dom.window.close();
+
+// A Reel shared in a conversation is not a link, so the click guard never sees it. Opening it still
+// moves the address, and that is what gets undone. The conversation itself is never touched.
+result = await fixture({
+  url: "https://www.instagram.com/direct/t/12345/",
+  settings: defaults,
+  html: `<main role="main"><div class="msg" id="m1">Hey</div><div class="msg" id="m2"><div id="shared" role="button">Shared Reel</div></div><div class="msg" id="m3">and this</div></main>`
+});
+assert.equal(result.document.querySelectorAll("[data-reelless-hidden]").length, 0, "a conversation must never have anything hidden in it");
+const dmCountBefore = result.messages.filter((m) => m.type === "recordBlockAttempt").length;
+// A real open begins with the reader touching the page.
+result.document.getElementById("shared").dispatchEvent(new result.dom.window.Event("pointerdown", { bubbles: true }));
+result.dom.window.history.pushState({}, "", "/reel/fromfriend/");
+await wait(1500);
+assert.notEqual(result.dom.window.location.pathname, "/reel/fromfriend/", "a Reel opened from a conversation must not stay open");
+assert.equal(
+  result.messages.filter((m) => m.type === "recordBlockAttempt").length,
+  dmCountBefore + 1,
+  "opening a shared Reel is a deliberate attempt and counts once"
+);
+for (const id of ["m1", "m2", "m3"]) {
+  assert.equal(result.document.getElementById(id).hasAttribute("data-reelless-hidden"), false, `message ${id} must be left alone`);
+}
+result.dom.window.close();
+
+// The guard must key the difference off a gesture, and must only decline in-page transitions.
+assert.match(guardSource, /function userDriven\(\)/, "the guard must tell a deliberate open from an address the site rewrote");
+assert.match(guardSource, /destination\.sameDocument/, "only in-page transitions may be declined; a real page load needs somewhere to go");
+assert.match(guardSource, /navigation\.addEventListener|nav\.addEventListener\("navigate"/, "the guard must watch same-document navigations");
+
+// The stylesheet carries the hiding on browsers that support :has(). These assertions pin the
+// contract the CSS relies on, since jsdom has no :has() support and always takes the script path.
+const guardCss = fs.readFileSync(new URL("../site_guard.css", import.meta.url), "utf8");
+assert.match(guardCss, /html:not\(\[data-reelless-mode="keep"\]\):not\(\[data-reelless-mode="off"\]\)/,
+  "the rules must default to hiding, so a page cannot flash Shorts before settings load");
+for (const selector of [
+  "ytd-reel-shelf-renderer",
+  'ytd-rich-shelf-renderer[is-shorts]',
+  'ytd-rich-item-renderer:has(a[href*="/shorts/"])',
+  'ytd-video-renderer:has(a[href*="/shorts/"])',
+  'grid-shelf-view-model:has(a[href*="/shorts/"]):not(:has(a[href*="/watch"]))'
+]) {
+  assert.ok(guardCss.includes(selector), `site_guard.css must cover ${selector}`);
+}
+// Each surface must have a rule, gated on its own token, and absent by default.
+for (const surface of ["homeFeed", "sidebar", "comments", "endScreen"]) {
+  assert.ok(guardCss.includes(`[data-reelless-surfaces~="${surface}"]`), `site_guard.css needs a rule for the ${surface} surface`);
+}
+assert.equal(guardCss.includes('data-reelless-surfaces~="explore"'), false, "Explore and Trending are gone from YouTube's navigation; the rule should not linger");
+assert.match(guardSource, /applySurfaceAttribute/, "the guard must publish which surfaces are on");
+
+assert.match(guardSource, /CSS_COVERED = new Set\(\["youtube"\]\)/, "YouTube hiding is delegated to the stylesheet");
+assert.match(guardSource, /CSS\.supports\("selector\(:has\(a\)\)"\)/, "the script must feature-detect rather than assume");
+
+await wait(50);
+assert.deepEqual(unexpectedErrors.map((error) => error.message), [], "the guard must not raise errors in any fixture");
+
+console.log("Core and optional platform DOM, mutation, safety-ancestor, entry-point mode, and focus-screen tests passed.");

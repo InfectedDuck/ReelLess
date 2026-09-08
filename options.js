@@ -5,8 +5,19 @@
   const stored = await chrome.storage.local.get([R.SETTINGS_KEY, R.LEGACY_SETTINGS_KEY]);
   let settings = R.normalizeSettings(stored[R.SETTINGS_KEY] || stored[R.LEGACY_SETTINGS_KEY]);
   let saveTimer = null;
-  let unlockEnd = 0;
   let unlockInterval = null;
+  let unlockActive = false;
+  let unlockRemaining = 0;
+  let unlockCheckpointIndex = 0;
+  let unlockAwaitingCheckpoint = false;
+  let unlockLastTick = 0;
+
+  const UNLOCK_DURATION = 60000;
+  const UNLOCK_CHECKPOINTS = [
+    { remaining: 45000, label: "Checkpoint 1 of 3 — I am choosing this deliberately" },
+    { remaining: 30000, label: "Checkpoint 2 of 3 — I still want to remove the lock" },
+    { remaining: 15000, label: "Checkpoint 3 of 3 — Continue the focused release" }
+  ];
 
   const coreContainer = document.getElementById("corePlatforms");
   const detailedCoreContainer = document.getElementById("detailedCorePlatforms");
@@ -29,6 +40,24 @@
 
   function modeOptions(selected) {
     return R.PLATFORM_MODES.map((mode) => `<option value="${mode.value}" ${mode.value === selected ? "selected" : ""}>${mode.label}</option>`).join("");
+  }
+
+  function entryOptions(selected) {
+    return R.ENTRY_POINT_MODES.map((mode) => `<option value="${mode.value}" ${mode.value === selected ? "selected" : ""}>${mode.label}</option>`).join("");
+  }
+
+  // The entry-point choice only matters while the site itself stays open. Off has nothing to show,
+  // and Block all covers every page with the focus screen.
+  function entryChoiceApplies(platform) {
+    const mode = settings.platforms[platform.id].mode;
+    return mode === "shortform" || mode === "selected";
+  }
+
+  function entryLabel(platform) {
+    if (platform.id === "youtube") return "Shorts in feeds";
+    if (platform.id === "instagram" || platform.id === "facebook") return "Reels in feeds";
+    if (platform.id === "tiktok") return "Feed links";
+    return "Short-form links";
   }
 
   function markStatus(message, error) {
@@ -63,18 +92,25 @@
   function platformCard(platform) {
     const card = document.createElement("article");
     card.className = "platform-card";
-    const checked = settings.platforms[platform.id].mode !== "off";
+    const setting = settings.platforms[platform.id];
+    const checked = setting.mode !== "off";
     const coverage = platform.id === "youtube" ? "Shorts links, shelves, and tabs" : platform.id === "tiktok" ? "For You and video pages" : "Reels links and direct Reel visits";
-    card.innerHTML = `<header><span class="platform-mark">${platform.id === "youtube" ? "YT" : platform.id === "instagram" ? "IG" : platform.id === "facebook" ? "FB" : "TT"}</span><strong>${platform.label}</strong></header><p>${coverage}</p><label class="core-toggle"><input type="checkbox" data-core-toggle="${platform.id}" ${checked ? "checked" : ""}><span></span><b>${checked ? "Protected" : "Off"}</b></label>`;
+    card.innerHTML = `<header><span class="platform-mark">${platform.id === "youtube" ? "YT" : platform.id === "instagram" ? "IG" : platform.id === "facebook" ? "FB" : "TT"}</span><strong>${platform.label}</strong></header><p>${coverage}</p><label class="core-toggle"><input type="checkbox" data-core-toggle="${platform.id}" ${checked ? "checked" : ""}><span></span><b>${checked ? "Protected" : "Off"}</b></label><label class="entry-choice" data-entry-choice="${platform.id}" ${entryChoiceApplies(platform) ? "" : "hidden"}>${entryLabel(platform)}<select data-entry-points="${platform.id}" aria-label="${platform.label} entry points in feeds">${entryOptions(setting.entryPoints)}</select></label>`;
     return card;
   }
 
   function advancedRow(platform) {
     const row = document.createElement(platform.core ? "article" : "details");
     row.className = `advanced-platform ${platform.core ? "core-mode-card" : "optional-site"}`;
-    const choices = platform.sections.map((section) => `<label><input type="checkbox" data-platform="${platform.id}" data-section="${section.id}" ${settings.platforms[platform.id].sections[section.id] ? "checked" : ""}>${section.label}</label>`).join("");
+    const setting = settings.platforms[platform.id];
+    const choices = platform.sections.map((section) => `<label><input type="checkbox" data-platform="${platform.id}" data-section="${section.id}" ${setting.sections[section.id] ? "checked" : ""}>${section.label}</label>`).join("");
     const permissionState = platform.core ? "" : `<div class="permission-state" data-permission-state="${platform.id}"><span>Checking optional access...</span><button type="button" data-grant="${platform.id}" hidden>Grant access</button></div>`;
-    const controls = `<select class="mode-select" data-platform="${platform.id}" aria-label="${platform.label} blocking mode">${modeOptions(settings.platforms[platform.id].mode)}</select><div class="section-choices" ${settings.platforms[platform.id].mode === "selected" ? "" : "hidden"}>${choices}</div>${permissionState}`;
+    const entryChoice = `<label class="entry-choice" data-entry-choice="${platform.id}" ${entryChoiceApplies(platform) ? "" : "hidden"}>${entryLabel(platform)}<select class="entry-select" data-entry-points="${platform.id}" aria-label="${platform.label} entry points in feeds">${entryOptions(setting.entryPoints)}</select></label>`;
+    const surfaces = (platform.surfaces || []).map((surface) => `<label><input type="checkbox" data-platform="${platform.id}" data-surface="${surface.id}" ${setting.surfaces[surface.id] ? "checked" : ""}>${surface.label}</label>`).join("");
+    const surfaceBlock = surfaces
+      ? `<div class="surface-choices" data-surface-choices="${platform.id}"><span class="surface-title">Also quieten these parts of the page</span><div class="surface-grid">${surfaces}</div><p class="surface-note">Off by default. These stay reachable, they are just hidden. Turn one off again if a page stops behaving.</p></div>`
+      : "";
+    const controls = `<div class="mode-controls"><select class="mode-select" data-platform="${platform.id}" aria-label="${platform.label} blocking mode">${modeOptions(setting.mode)}</select>${entryChoice}</div><div class="section-choices" data-section-choices="${platform.id}" ${setting.mode === "selected" ? "" : "hidden"}>${choices}</div>${surfaceBlock}${permissionState}`;
     if (platform.core) {
       row.innerHTML = `<div><strong>${platform.label}</strong><p>Choose a narrower or wider protection mode.</p></div>${controls}`;
     } else {
@@ -82,6 +118,24 @@
       row.innerHTML = `<summary><span><strong>${platform.label}</strong><small>${mode === "off" ? "Off — optional access" : R.PLATFORM_MODES.find((item) => item.value === mode).label}</small></span><span class="row-chevron" aria-hidden="true"></span></summary><div class="advanced-platform-body">${controls}</div>`;
     }
     return row;
+  }
+
+  // One platform can be controlled from its core card and its detailed row; keep every copy in step.
+  function syncPlatformControls(platform) {
+    const setting = settings.platforms[platform.id];
+    const enabled = setting.mode !== "off";
+    const coreToggle = document.querySelector(`input[data-core-toggle="${platform.id}"]`);
+    if (coreToggle) {
+      coreToggle.checked = enabled;
+      coreToggle.closest(".core-toggle").querySelector("b").textContent = enabled ? "Protected" : "Off";
+    }
+    document.querySelectorAll(`select.mode-select[data-platform="${platform.id}"]`).forEach((select) => { select.value = setting.mode; });
+    document.querySelectorAll(`[data-section-choices="${platform.id}"]`).forEach((node) => { node.hidden = setting.mode !== "selected"; });
+    document.querySelectorAll(`[data-surface-choices="${platform.id}"]`).forEach((node) => { node.hidden = setting.mode === "off"; });
+    document.querySelectorAll(`[data-entry-choice="${platform.id}"]`).forEach((node) => { node.hidden = !entryChoiceApplies(platform); });
+    document.querySelectorAll(`select[data-entry-points="${platform.id}"]`).forEach((select) => { select.value = setting.entryPoints; });
+    const summary = document.querySelector(`.optional-site select.mode-select[data-platform="${platform.id}"]`)?.closest(".optional-site")?.querySelector("summary small");
+    if (summary) summary.textContent = setting.mode === "off" ? "Off — optional access" : R.PLATFORM_MODES.find((item) => item.value === setting.mode).label;
   }
 
   function renderPlatforms() {
@@ -104,7 +158,13 @@
     list.textContent = "";
     settings.customEntries.forEach((entry) => {
       const item = document.createElement("li");
-      item.innerHTML = `<span>${entry}</span><button type="button" data-remove="${entry}">Remove</button>`;
+      const label = document.createElement("span");
+      label.textContent = entry;
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.dataset.remove = entry;
+      removeButton.textContent = "Remove";
+      item.append(label, removeButton);
       list.appendChild(item);
     });
   }
@@ -172,10 +232,8 @@
       markStatus(`Waiting for ${platform.label} access...`);
       const granted = await requestPlatform(platform);
       if (!granted) {
-        select.value = "off";
         settings.platforms[platform.id].mode = "off";
-        const choices = select.closest(".advanced-platform")?.querySelector(".section-choices");
-        if (choices) choices.hidden = true;
+        syncPlatformControls(platform);
         await save();
         await refreshPermissionStates();
         markStatus(`${platform.label} access was not granted`, true);
@@ -183,49 +241,91 @@
       }
     }
     settings.platforms[platform.id].mode = next;
-    const coreToggle = document.querySelector(`input[data-core-toggle="${platform.id}"]`);
-    if (coreToggle) coreToggle.checked = next !== "off";
-    const choices = select.closest(".advanced-platform")?.querySelector(".section-choices");
-    if (choices) choices.hidden = next !== "selected";
+    syncPlatformControls(platform);
     await save();
     if (!platform.core && next === "off") await removePlatformPermission(platform);
     await refreshPermissionStates();
   }
 
+  function unlockControlsDisabled(disabled) {
+    document.getElementById("unlockAction").disabled = disabled;
+    document.getElementById("unlockPhrase").disabled = disabled;
+    document.getElementById("unlockReason").disabled = disabled;
+  }
+
+  function renderUnlockProgress() {
+    const segments = Array.from(document.querySelectorAll("#unlockProgress span"));
+    segments.forEach((segment, index) => {
+      segment.classList.toggle("complete", index < unlockCheckpointIndex);
+      segment.classList.toggle("active", unlockActive && index === unlockCheckpointIndex);
+    });
+  }
+
   function resetUnlock(message) {
     clearInterval(unlockInterval);
     unlockInterval = null;
-    unlockEnd = 0;
+    unlockActive = false;
+    unlockRemaining = 0;
+    unlockCheckpointIndex = 0;
+    unlockAwaitingCheckpoint = false;
+    unlockLastTick = 0;
+    unlockControlsDisabled(false);
     document.getElementById("confirmUnlock").disabled = true;
     document.getElementById("startUnlock").disabled = false;
-    document.getElementById("unlockTimer").textContent = message || "Keep this Settings page open and focused for one minute.";
+    document.getElementById("unlockRitual").hidden = true;
+    document.getElementById("unlockCheckpoint").hidden = true;
+    document.getElementById("unlockTimer").textContent = message || "Keep this Settings page open, focused, and complete all three checkpoints.";
+    renderUnlockProgress();
   }
 
   function updateUnlockTimer() {
-    const remaining = Math.max(0, unlockEnd - Date.now());
-    if (remaining === 0) {
+    if (!unlockActive || unlockAwaitingCheckpoint) return;
+    const now = Date.now();
+    unlockRemaining = Math.max(0, unlockRemaining - Math.max(0, now - unlockLastTick));
+    unlockLastTick = now;
+
+    const checkpoint = UNLOCK_CHECKPOINTS[unlockCheckpointIndex];
+    if (checkpoint && unlockRemaining <= checkpoint.remaining) {
+      unlockRemaining = checkpoint.remaining;
+      unlockAwaitingCheckpoint = true;
+      const button = document.getElementById("unlockCheckpoint");
+      button.textContent = checkpoint.label;
+      button.hidden = false;
+      document.getElementById("unlockTimer").textContent = `${Math.ceil(unlockRemaining / 1000)} seconds remain. Complete checkpoint ${unlockCheckpointIndex + 1} to continue.`;
+      renderUnlockProgress();
+      return;
+    }
+
+    if (unlockRemaining === 0) {
       clearInterval(unlockInterval);
       unlockInterval = null;
       document.getElementById("confirmUnlock").disabled = false;
       document.getElementById("startUnlock").disabled = true;
-      document.getElementById("unlockTimer").textContent = "Wait complete. Confirm removal while this page remains open.";
+      document.getElementById("unlockTimer").textContent = "Focused minute and all checkpoints complete. Confirm removal without leaving this page.";
+      renderUnlockProgress();
       return;
     }
-    document.getElementById("unlockTimer").textContent = `Keep this Settings page open and focused: ${Math.ceil(remaining / 1000)} seconds remaining.`;
+    document.getElementById("unlockTimer").textContent = `Stay on this page: ${Math.ceil(unlockRemaining / 1000)} seconds remaining, ${UNLOCK_CHECKPOINTS.length - unlockCheckpointIndex} check-ins left.`;
   }
 
   document.addEventListener("change", async (event) => {
     const target = event.target;
     if (locked()) return;
-    if (target.matches("select[data-platform]")) return onModeChange(target);
+    if (target.matches("select.mode-select[data-platform]")) return onModeChange(target);
+    if (target.matches("select[data-entry-points]")) {
+      const platform = R.platformById(target.dataset.entryPoints);
+      settings.platforms[platform.id].entryPoints = target.value;
+      syncPlatformControls(platform);
+      return queueSave();
+    }
     if (target.matches("input[data-core-toggle]")) {
       const platform = R.platformById(target.dataset.coreToggle);
       settings.platforms[platform.id].mode = target.checked ? platform.defaultMode : "off";
-      const detailed = document.querySelector(`#detailedCorePlatforms select[data-platform="${platform.id}"]`);
-      if (detailed) {
-        detailed.value = settings.platforms[platform.id].mode;
-        detailed.closest(".advanced-platform").querySelector(".section-choices").hidden = settings.platforms[platform.id].mode !== "selected";
-      }
+      syncPlatformControls(platform);
+      return queueSave();
+    }
+    if (target.matches("input[data-surface]")) {
+      settings.platforms[target.dataset.platform].surfaces[target.dataset.surface] = target.checked;
       return queueSave();
     }
     if (target.matches("input[data-section]")) {
@@ -319,29 +419,49 @@
     settings = R.createUltimateSettings(settings, profile);
     await save();
     renderAll();
-    setUltimateFeedback("Ultimate Lock is active. Use the one-minute continuous unlock flow when you genuinely want to remove it.");
+    setUltimateFeedback("Ultimate Lock is active. Removal requires a private reflection, three check-ins, and one focused minute.");
   });
 
   document.getElementById("startUnlock").addEventListener("click", () => {
     const action = document.getElementById("unlockAction").value;
     const phrase = document.getElementById("unlockPhrase").value.trim();
-    if (action !== "remove_ultimate" || phrase !== "REMOVE ULTIMATE") {
-      setUltimateFeedback("Choose Remove Ultimate Lock and type REMOVE ULTIMATE exactly to start the wait.", true);
+    const reason = document.getElementById("unlockReason").value.trim();
+    if (action !== "remove_ultimate" || phrase !== "REMOVE ULTIMATE" || reason.length < 20) {
+      setUltimateFeedback("Choose Remove Ultimate Lock, type REMOVE ULTIMATE exactly, and write at least 20 characters about why you are removing it.", true);
       return;
     }
     setUltimateFeedback("");
-    unlockEnd = Date.now() + 60000;
+    unlockActive = true;
+    unlockRemaining = UNLOCK_DURATION;
+    unlockCheckpointIndex = 0;
+    unlockAwaitingCheckpoint = false;
+    unlockLastTick = Date.now();
+    unlockControlsDisabled(true);
     document.getElementById("startUnlock").disabled = true;
+    document.getElementById("unlockRitual").hidden = false;
+    document.getElementById("unlockCheckpoint").hidden = true;
+    renderUnlockProgress();
     updateUnlockTimer();
     unlockInterval = setInterval(updateUnlockTimer, 250);
+  });
+
+  document.getElementById("unlockCheckpoint").addEventListener("click", () => {
+    if (!unlockActive || !unlockAwaitingCheckpoint) return;
+    unlockCheckpointIndex += 1;
+    unlockAwaitingCheckpoint = false;
+    unlockLastTick = Date.now();
+    document.getElementById("unlockCheckpoint").hidden = true;
+    renderUnlockProgress();
+    updateUnlockTimer();
   });
 
   document.getElementById("confirmUnlock").addEventListener("click", async () => {
     const action = document.getElementById("unlockAction").value;
     const phrase = document.getElementById("unlockPhrase").value.trim();
-    if (unlockEnd > Date.now() || action !== "remove_ultimate" || phrase !== "REMOVE ULTIMATE") {
+    const reason = document.getElementById("unlockReason").value.trim();
+    if (!unlockActive || unlockRemaining > 0 || unlockCheckpointIndex !== UNLOCK_CHECKPOINTS.length || action !== "remove_ultimate" || phrase !== "REMOVE ULTIMATE" || reason.length < 20) {
       resetUnlock();
-      setUltimateFeedback("The unlock conditions changed. Start the one-minute wait again.", true);
+      setUltimateFeedback("The release conditions changed. Complete the focused release again.", true);
       return;
     }
     settings = R.releaseUltimateSettings(settings);
@@ -352,15 +472,15 @@
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && unlockEnd) {
-      resetUnlock("Timer reset because Settings was left. Start again when you are ready.");
-      setUltimateFeedback("The one-minute wait must be continuous.", true);
+    if (document.hidden && unlockActive) {
+      resetUnlock("Release reset because Settings was left. Start again when you are ready.");
+      setUltimateFeedback("The focused minute and all checkpoints must be completed without leaving Settings.", true);
     }
   });
   window.addEventListener("blur", () => {
-    if (unlockEnd) {
-      resetUnlock("Timer reset because Settings lost focus. Start again when you are ready.");
-      setUltimateFeedback("The one-minute wait must be continuous.", true);
+    if (unlockActive) {
+      resetUnlock("Release reset because Settings lost focus. Start again when you are ready.");
+      setUltimateFeedback("The focused minute and all checkpoints must be completed without leaving Settings.", true);
     }
   });
   window.addEventListener("pagehide", () => resetUnlock());
@@ -371,10 +491,23 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || !changes[R.SETTINGS_KEY]) return;
     settings = R.normalizeSettings(changes[R.SETTINGS_KEY].newValue);
-    if (unlockEnd) resetUnlock();
+    if (unlockActive) resetUnlock();
     renderAll();
   });
 
+  // Firefox for Android offers no interface for granting or withdrawing optional host access, so
+  // the optional-sites and custom-pages flows would fail with nothing on screen to explain why.
+  // The four bundled core sites need no grant and keep working.
+  async function hideUngrantableFlowsOnAndroid() {
+    let platform = null;
+    try { platform = await chrome.runtime.getPlatformInfo(); } catch (_error) { return; }
+    if (!platform || platform.os !== "android") return;
+    document.getElementById("moreSitesSection").hidden = true;
+    document.getElementById("customSection").hidden = true;
+    document.getElementById("mobileNotice").hidden = false;
+  }
+
   renderAll();
+  await hideUngrantableFlowsOnAndroid();
   await chrome.storage.local.set({ [R.SETTINGS_KEY]: settings });
 })();

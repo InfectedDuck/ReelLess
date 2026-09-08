@@ -2,6 +2,45 @@
 
 All notable changes to ReelLess are documented here.
 
+## 2.3.0 - 2026-09-08
+
+- Fixed the Instagram feed carrying you back up while you read it. Two causes. A recycled card was being revealed at full height above you the moment the site emptied it, because an absent link was treated as proof the card had become ordinary; revealing it pushed everything below it down. And the guard was answering the site's own address rewrites with a history step, which restores the scroll position saved on the entry it lands on. Measured over one reading session, the two together produced 22 backward jumps of up to 3,269 pixels. Both are now zero.
+- The guard no longer steps back through history at all. It replaces the address, which moves nothing, and tells the page the address moved so a viewer opened by the page itself still closes.
+- Paging with Space, PageDown or the arrow keys no longer looks like opening something, so reading a feed can never be mistaken for a deliberate attempt.
+- A Reel shared in a Direct conversation can no longer be opened. Instagram renders these as a card rather than a link, so the click guard never saw them; opening one still moves the address, and that is now undone. The conversation itself is untouched, exactly as before: nothing in it is hidden, only the Reel refuses to open.
+- Fixed the Instagram feed throwing you back to the top while scrolling. Instagram rewrites its address to a Reel as reels pass the viewport, and the guard answered that with a real navigation, which reloaded the feed and reset the scroll position, over and over. When the page you are on was already allowed, the address is now put back without touching the page. Arriving directly on a Reel still redirects as before, and a Short still opens in the normal player.
+- Address changes made by a site while you scroll are no longer counted as blocked attempts, since nobody asked to go anywhere.
+- Same-document address changes are now noticed through the Navigation API where available, which cuts the response from up to a second down to a few milliseconds.
+- Added optional controls to quieten YouTube's other attention surfaces: the home feed recommendations, the Up next sidebar, comments, and end-screen suggestions. All four are off until switched on, none of them blocks navigation, and they live in the detailed YouTube row under Advanced. Hiding more of a page is the most common way an extension in this category breaks something, so these are opt-in by design.
+- The review prompt now reaches people the extension simply worked for. It previously required seven separate days on which you tried to open something blocked, so the users who never relapsed were never asked.
+- Migrated saved settings to schema v7, which adds the surface switches and keeps every existing choice.
+- Hiding is now done by the stylesheet rather than by script, so a Short is never painted at all. Previously a card could appear for a few frames before script removed it, which is what produced the glimpse when scrolling or hovering near a Shorts row. Measured across 164 frames of scrolling, the old path showed Shorts on 7 of them and the new path on none.
+- The script no longer watches the DOM on YouTube, because the stylesheet has already hidden everything before it is laid out. Where :has() is unavailable the previous script path still runs, so nothing is lost on older browsers.
+- Closed short-form entry points that were reachable through a handle: an Instagram profile's Reels tab, a TikTok profile page, and a Facebook page's Videos tab. Section matching is now pattern-based, and a blocked profile Reels tab returns to that profile rather than the feed.
+- Removed a TikTok path prefix that could never match a real profile URL, which left profile pages open whenever TikTok was narrowed from Block all.
+- YouTube search results now hide the Shorts shelf with its heading, instead of leaving an empty "Shorts" title behind. A grid that mixes Shorts with ordinary videos loses only the Shorts.
+- Added a Firefox build. The extension aliases the promise-based browser namespace, guards its background import, and generates the Firefox manifest from the Chrome one so the two cannot drift.
+- Opted the Firefox package in to Firefox for Android, and hid the optional-sites and custom-pages controls there, since Android offers no way to grant that access.
+- Store screenshots are now captured from the live YouTube and TikTok, not from synthetic mock-ups. Frames that need a signed-in account are skipped with instructions rather than faked.
+- Renamed the Chrome Web Store listing to lead with what people search for: "Block Shorts & Reels: YouTube, Instagram, TikTok, Facebook — ReelLess". ReelLess remains the in-product brand in the popup, icon, and toolbar tooltip.
+- Rewrote the store summary to name the platforms, the Shorts-to-normal-player redirect, and the offline/no-account promise.
+- Updated the release check to accept the brand anywhere in the name and to fail if the store name or summary exceeds the 75 and 132 character limits.
+- Fixed the release check reading the manifest as ANSI, which miscounted the em dash in the store name.
+- Added a per-site entry-point choice: Shorts, Reels, and feed links can be hidden from feeds (default) or stay visible but cannot be opened. It appears on each core card and in the Advanced rows for every site.
+- Fixed lag and flicker while scrolling YouTube with Shorts hidden. The guard no longer clears and re-checks every link on the page whenever a link attribute changes; it evaluates only new content and links that actually changed, hides new cards before they are painted, and tracks checked links off the DOM.
+- YouTube home Shorts shelves are now hidden as one unit, including their heading, instead of leaving an empty band.
+- A blocked click that cannot be converted now shows the focus screen until you choose Stay here, pause, or open Settings, instead of disappearing on the next page update.
+- Hidden cards that a site recycles for ordinary content reappear automatically, and schedule or pause boundaries refresh hidden cards without a reload.
+- Migrated saved settings to schema v6, keeping every existing choice and defaulting entry points to hidden.
+
+## 2.2.1 - 2026-09-01
+
+- Strengthened Ultimate Lock removal with a private unsaved reflection and three timed confirmation checkpoints.
+- Made the one-minute release countdown pause at each checkpoint and reset completely when Settings loses focus, is hidden, reloaded, or closed.
+- Added Chrome smoke and interface coverage for the active release ritual and its local-only privacy boundary.
+- Removed obsolete Messenger content-script access, narrowed arbitrary optional access to HTTPS, safely rendered custom entries, and hardened service-worker message validation.
+- Added a security review and a reproducible Chrome Web Store submission kit.
+
 ## 2.2.0 - 2026-08-31
 
 - Retired the unreliable Direct-message video feature. ReelLess no longer changes Instagram Direct or Messenger conversations.
