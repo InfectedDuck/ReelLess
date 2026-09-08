@@ -33,7 +33,7 @@ Expected specifics:
 
 ## Ultimate Lock
 
-- Confirm Instagram Direct and Messenger conversations, including their videos, remain outside ReelLess protection and are not modified or counted.
+- Confirm Instagram Direct and Messenger conversations, including their videos, are not modified: nothing in a thread is hidden, and the conversation layout is untouched. A Reel shared in a conversation refuses to open and returns to the thread; a deliberate open counts as one blocked navigation; nothing else in the conversation is counted.
 - Enable Ultimate Lock using both profiles. Confirm protection stays on, schedules stay Always on, all normal platform controls and pauses are unavailable, and TikTok's focus screen has no pause button.
 - Start Ultimate removal: select **Remove Ultimate Lock**, enter `REMOVE ULTIMATE`, and confirm a reason shorter than 20 characters cannot start the release.
 - Enter a longer private reason and start. Confirm the action, phrase, and reason become fixed, the reason is absent from Chrome storage, and Confirm stays disabled.
@@ -52,7 +52,7 @@ Expected specifics:
 - Deny an Advanced platform request: its mode must remain Off and no extension error should appear.
 - Grant an Advanced site, confirm its dynamic guard, disable it, and confirm the access and guard are removed.
 - Add a custom domain/path, deny and then grant access, verify block-only behavior, then remove it.
-- Update a profile containing v1, v4, or v5 settings and confirm schedule, platform selections, and custom entries are preserved in v6 `settingsV2`; the retired Direct-video setting must disappear and every platform must default to hidden entry points.
+- Update a profile containing v1, v4, or v5 settings and confirm schedule, platform selections, and custom entries are preserved in v7 `settingsV2`; the retired Direct-video setting must disappear and every platform must default to hidden entry points.
 
 ## Release gate
 

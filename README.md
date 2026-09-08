@@ -21,7 +21,7 @@ ReelLess removes YouTube Shorts, Instagram and Facebook Reels, and TikTok distra
 - YouTube Shorts entry points are hidden; `/shorts/{id}` opens as `/watch?v={id}`.
 - Each site can instead keep Shorts, Reels, or feed links visible while still stopping them from opening. Choose **Hidden** or **Visible, can't be opened** on the core card or in Advanced.
 - Instagram and Facebook Reels entry points are hidden; direct Reel visits return to the normal feed.
-- Independent Instagram and Facebook controls can also hide and pause inline Direct/Messenger videos, without removing the conversation layout.
+- Instagram Direct and Facebook Messenger conversations are never modified. A Reel shared in a conversation refuses to open, but nothing in the thread is hidden.
 - TikTok feed/video surfaces show a calm local focus screen. Selected utility sections can be allowed in Advanced settings.
 - Only deliberate blocked navigation or clicks increase the local today/all-time count. Hidden cards do not.
 - Schedules, seven additional platforms, full-site blocking, section controls, and custom domains live under Advanced.
