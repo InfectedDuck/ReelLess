@@ -660,6 +660,40 @@ for (const selector of [
   assert.ok(guardCss.includes(selector), `site_guard.css must cover ${selector}`);
 }
 
+// Facebook plays a feed video in a dialog without moving the address, so no navigation and no
+// link click exists to refuse. The only lever is removing the posts, which the stylesheet does from
+// a "videoPosts" token. It must appear exactly when the Watch section is blocked and entry points
+// are hidden, and never on a conversation, where nothing may be touched.
+assert.match(guardCss, /\[data-reelless-surfaces~="videoPosts"\]/, "site_guard.css needs the Facebook video-post rule");
+assert.match(guardCss, /div\[aria-posinset\]:has\(video\)/, "a Facebook feed post is div[aria-posinset]");
+
+const videoPostHtml = '<div aria-posinset="1" id="post"><video id="clip"></video></div><div aria-posinset="2" id="text">words</div>';
+const surfacesOf = (r) => r.document.documentElement.dataset.reellessSurfaces || "";
+const watchOn = withSections(defaults, "facebook", { reels: true, watch: true, marketplace: false });
+const watchOff = withSections(defaults, "facebook", { reels: true, watch: false, marketplace: false });
+
+for (const [label, settings, url, expected] of [
+  ["Watch blocked", watchOn, "https://www.facebook.com/", true],
+  ["Watch left alone", watchOff, "https://www.facebook.com/", false],
+  ["default short-form mode", defaults, "https://www.facebook.com/", false],
+  ["entry points kept visible", withEntryPoints(watchOn, "facebook", "keep"), "https://www.facebook.com/", false],
+  ["a Messenger conversation", watchOn, "https://www.facebook.com/messages/t/friend", false]
+]) {
+  const r = await fixture({ url, settings, html: videoPostHtml, cssHas: true });
+  assert.equal(surfacesOf(r).split(" ").includes("videoPosts"), expected,
+    `${label} must ${expected ? "" : "not "}arm the Facebook video-post rule`);
+  r.dom.window.close();
+}
+
+// The token is Facebook's alone: Instagram must never receive it, whatever its sections say.
+const igWatch = await fixture({
+  url: "https://www.instagram.com/",
+  settings: withSections(defaults, "instagram", { reels: true, explore: true }),
+  html: videoPostHtml, cssHas: true
+});
+assert.equal(surfacesOf(igWatch).includes("videoPosts"), false, "the video-post rule is Facebook's alone");
+igWatch.dom.window.close();
+
 assert.match(guardSource, /CSS_COVERED = new Map\(\[\s*\["youtube", \["shorts"\]\],\s*\["instagram", \["reels"\]\],\s*\["facebook", \["reels"\]\]\s*\]\)/, "YouTube, Instagram and Facebook hiding is delegated to the stylesheet");
 assert.match(guardSource, /CSS\.supports\("selector\(:has\(a\)\)"\)/, "the script must feature-detect rather than assume");
 assert.match(guardSource, /CONVERSATION_PATHS = \{ instagram: \/\^\\\/direct/, "Instagram Direct must be excused from the stylesheet by address");

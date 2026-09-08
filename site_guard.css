@@ -60,6 +60,19 @@ html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
   display: none !important;
 }
 
+/* Facebook plays a feed video in place and opens it in a dialog, without ever changing the
+   address, so neither the navigation guard nor the click guard can refuse it. When the Watch
+   section is blocked, the posts carrying those videos are removed from the feed instead, which is
+   the only point at which the decision can still be made. A feed post is div[aria-posinset]; the
+   article form is a fallback for renderings that still use it. Reels are handled above and are
+   already gone by the time these rules matter. */
+html[data-reelless-surfaces~="videoPosts"] :is(
+  div[aria-posinset]:has(video),
+  [role="article"]:not(:has([role="article"])):has(video)
+) {
+  display: none !important;
+}
+
 /* Optional YouTube surfaces. Each is opt-in and off until switched on, so the attribute is absent
    by default and these rules do nothing. Unlike the Shorts rules above, none of these block
    navigation: the page stays reachable, it is just quieter. */

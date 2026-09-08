@@ -136,7 +136,20 @@
   // reason as the mode attribute: touching it re-resolves every rule it gates.
   function applySurfaceAttribute(element) {
     const platform = R.platformForUrl(location.href);
-    const next = platform ? R.activeSurfaces(settings, platform).join(" ") : "";
+    const ids = platform ? R.activeSurfaces(settings, platform) : [];
+    // Facebook opens a video from the feed in a dialog and never changes the address, so there is
+    // no navigation for the guard to refuse and nothing the click guard can recognise: the target
+    // is not a link. Honouring a blocked Watch section in the feed therefore means taking the
+    // video posts out of it, which the stylesheet does from this token. Entry-point "keep" mode
+    // deliberately does not qualify, since keeping something visible but unopenable is exactly
+    // what cannot be delivered here.
+    if (platform && platform.id === "facebook" && !isConversationPage(platform)
+      && R.isScheduleActive(settings, new Date())
+      && R.hidesEntryPoints(settings, platform)
+      && R.sectionBlocked(settings, platform, "watch")) {
+      ids.push("videoPosts");
+    }
+    const next = ids.join(" ");
     if (lastSurfaces === next) return;
     lastSurfaces = next;
     if (next) element.dataset.reellessSurfaces = next;
