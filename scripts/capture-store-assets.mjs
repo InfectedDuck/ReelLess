@@ -50,6 +50,19 @@ async function screenshotUrl(url, routePattern, body, destination, viewport = { 
   await page.close();
 }
 
+// A signed-in social feed greets a fresh browser with a dialog: Instagram asks to turn on
+// notifications, Facebook to save the login. Either one sits over the feed and turns the frame into
+// a screenshot of the dialog. Decline them the way a person would, then give the feed a moment.
+async function dismissPrompts(page) {
+  for (const label of ["Not Now", "Not now", "Cancel", "Close"]) {
+    const button = page.getByRole("button", { name: label, exact: true }).first();
+    if (await button.count() && await button.isVisible().catch(() => false)) {
+      await button.click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(700);
+    }
+  }
+}
+
 // Captures a live page rather than a served fixture. Returns the scroll offset it settled on, so
 // the matching "after" capture can be taken from exactly the same position and the two frames
 // differ only by what ReelLess removed.
@@ -58,6 +71,7 @@ async function capturePage(url, destination, { viewport = { width: 1280, height:
   await page.setViewportSize(viewport);
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
   await page.waitForTimeout(settle);
+  await dismissPrompts(page);
   let offset = 0;
   if (scrollTo === null) {
     // Bring a real short-form block in the results body into view. The persistent sidebar also
