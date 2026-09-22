@@ -72,7 +72,7 @@ vm.runInContext(workerSource, sandbox);
 await new Promise((resolve) => setTimeout(resolve, 20));
 
 assert.equal(listeners.message.length, 1);
-assert.equal(store.settingsV2.schemaVersion, 7, "v1 settings should migrate to the current schema");
+assert.equal(store.settingsV2.schemaVersion, 10, "v1 settings should migrate to the current schema");
 assert.equal(store.settingsV2.platforms.reddit.mode, "selected");
 assert.equal(dynamicRules.length, 0, "denied custom permission must fail safely");
 assert.equal(registered.length, 0, "denied advanced permission must not register a guard");
@@ -91,16 +91,21 @@ assert.equal(registered.some((item) => item.id === "reelless-advanced-reddit"), 
 
 const optionalPlatforms = sandbox.ReelLess.PLATFORMS.filter((platform) => !sandbox.ReelLess.CORE_PLATFORM_IDS.includes(platform.id));
 for (const platform of optionalPlatforms) {
-  store.settingsV2.platforms[platform.id].mode = "shortform";
+  store.settingsV2.platforms[platform.id].mode = platform.sections.some((section) => section.shortform) ? "shortform" : "selected";
   for (const origin of platform.permissionPatterns) granted.add(origin);
 }
 response = await message({ type: "applySettings" });
 assert.equal(response.ok, true);
+const customGuardId = sandbox.ReelLess.customScriptId("example.com/reels");
 assert.deepEqual(
   Array.from(registered, (item) => item.id).sort(),
-  Array.from(optionalPlatforms, (platform) => `reelless-advanced-${platform.id}`).sort(),
+  [...Array.from(optionalPlatforms, (platform) => `reelless-advanced-${platform.id}`), customGuardId].sort(),
   "Every enabled optional platform with granted access should receive exactly one dynamic guard"
 );
+const customGuard = registered.find((item) => item.id === customGuardId);
+assert.deepEqual([...customGuard.matches], ["https://example.com/reels*"], "a custom boundary guard covers exactly its entry");
+assert.deepEqual([...customGuard.js], ["shared.js", "site_guard.js"]);
+assert.deepEqual([...customGuard.css], ["site_guard.css"]);
 for (const platform of optionalPlatforms) {
   const guard = registered.find((item) => item.id === `reelless-advanced-${platform.id}`);
   assert.deepEqual([...guard.matches], [...platform.permissionPatterns], `${platform.id} guard must be restricted to its exact granted origins`);
@@ -112,7 +117,14 @@ store.settingsV2.platforms.x.mode = "off";
 response = await message({ type: "applySettings" });
 assert.equal(response.ok, true);
 assert.equal(registered.some((item) => item.id === "reelless-advanced-x"), false, "A disabled optional platform must remove its guard even when access remains granted");
-assert.equal(registered.length, optionalPlatforms.length - 1);
+assert.equal(registered.length, optionalPlatforms.length, "the custom boundary guard stays while its entry remains");
+assert.equal(registered.some((item) => item.id === customGuardId), true);
+
+store.settingsV2.customEntries = [];
+response = await message({ type: "applySettings" });
+assert.equal(response.ok, true);
+assert.equal(registered.some((item) => item.id === customGuardId), false, "removing a custom entry must remove its guard");
+assert.equal(dynamicRules.length, 0, "removing a custom entry must remove its network rule");
 
 await message({ type: "recordBlockAttempt", eventId: "same-deliberate-attempt" });
 await message({ type: "recordBlockAttempt", eventId: "same-deliberate-attempt" });

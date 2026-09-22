@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; } body { margin: 0; background: #000; color: #eee; font: 16px system-ui; }
+  main { display: grid; grid-template-columns: 170px minmax(0, 600px) minmax(0, 330px); max-width: 1140px; margin: auto; }
+  nav, [data-testid="primaryColumn"], [data-testid="sidebarColumn"] { padding: 20px; }
+  [data-testid="primaryColumn"] { border-inline: 1px solid #333; min-height: 100vh; }
+  a { color: #61b7ff; } nav a { display: block; margin-bottom: 24px; }
+  input { width: 100%; border: 1px solid #555; border-radius: 20px; background: #111; color: #fff; padding: 12px; }
+  section, aside { border: 1px solid #333; padding: 16px; margin-top: 16px; border-radius: 12px; }
+  [role="tablist"] { display: flex; gap: 16px; padding-top: 24px; }
+  button { background: #171717; color: #fff; border: 1px solid #555; padding: 10px; border-radius: 12px; }
+  [data-testid="DMDrawer"] { position: fixed; bottom: 10px; right: 10px; padding: 15px; border: 1px solid #555; background: #111; }
+  @media(max-width: 650px) { main { grid-template-columns: 75px minmax(0, 1fr); } nav { padding: 12px; } [data-testid="sidebarColumn"] { display: none; } }
+</style>
+<main>
+  <nav id="navigation"><a href="/home">Home</a><a href="/explore">Explore</a><a href="/notifications">Alerts</a><a href="/messages">Chat</a><a href="/friend">Profile</a></nav>
+  <div data-testid="primaryColumn">
+    <form role="search" action="/search"><input id="search" name="q" role="combobox" data-testid="SearchBox_Search_Input" placeholder="Search"><div role="listbox" id="suggestions"><a href="/friend">Suggested account</a></div></form>
+    <div id="tabs" role="tablist"><button role="tab">Explore</button><button role="tab">Trending</button></div>
+    <section role="region" id="timeline"><h2>Discover</h2><div data-testid="cellInnerDiv"><article><p>A recommended post</p><a href="/friend/status/123">Open post</a></article></div></section>
+    <section role="region" id="mixed-region"><h2>Search tools</h2><input aria-label="Search accounts"><div data-testid="cellInnerDiv">Must remain available</div></section>
+  </div>
+  <div data-testid="sidebarColumn">
+    <form role="search"><input id="sidebar-search" placeholder="Search"></form>
+    <section id="news"><h2>Новости дня</h2><a href="/i/news/123">News story</a><a href="/explore">Show more</a></section>
+    <section id="trends"><h2>Tendencias</h2><div data-testid="trend">A trending topic</div></section>
+    <aside id="follow"><h2>おすすめユーザー</h2><div data-testid="UserCell"><a href="/friend">Friend</a><button>Follow</button></div></aside>
+    <section id="unknown"><h2>Unrecognized module</h2><p>Keep uncertain content</p></section>
+    <section id="mixed-sidebar"><h2>Useful search</h2><input aria-label="Find people"><div data-testid="UserCell">Must remain available</div></section>
+    <footer id="footer">Terms · Privacy</footer>
+  </div>
+</main>
+<div data-testid="DMDrawer" id="chat"><button>Chat</button></div>
+</html>

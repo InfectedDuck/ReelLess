@@ -4,12 +4,14 @@
   "private": true,
   "description": "ReelLess Chrome extension development and release checks",
   "scripts": {
-    "test": "node scripts/test-shared.mjs && node scripts/test-service-worker.mjs && node scripts/test-site-guard.mjs && node scripts/test-firefox.mjs && node scripts/test-zip.mjs && node scripts/test-docs.mjs",
+    "test": "node scripts/test-shared.mjs && node scripts/test-service-worker.mjs && node scripts/test-site-guard.mjs && node scripts/test-videos.mjs && node scripts/test-firefox.mjs && node scripts/test-zip.mjs && node scripts/test-docs.mjs",
     "validate": "powershell -ExecutionPolicy Bypass -File scripts/validate-extension.ps1",
     "build": "powershell -ExecutionPolicy Bypass -File scripts/build-package.ps1",
     "build:firefox": "node scripts/build-firefox.mjs",
     "submission": "powershell -ExecutionPolicy Bypass -File scripts/build-submission.ps1",
     "smoke": "node scripts/smoke-extension.mjs",
+    "test:x-browser": "node scripts/test-x-browser.mjs",
+    "test:instagram-browser": "node scripts/test-instagram-browser.mjs",
     "screenshots": "node scripts/capture-store-assets.mjs"
   },
   "devDependencies": {

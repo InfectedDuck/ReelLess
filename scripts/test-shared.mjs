@@ -33,12 +33,12 @@ const migrated = R.normalizeSettings({
   },
   customEntries: ["example.com/reels", "https://www.example.com/reels/", "invalid"]
 });
-assert.equal(migrated.schemaVersion, 7);
+assert.equal(migrated.schemaVersion, 10);
 assert.equal(migrated.schedulePreset, "custom");
 assert.equal(migrated.customStart, "08:10");
 assert.equal(migrated.platforms.youtube.mode, "off");
 assert.equal(migrated.platforms.reddit.mode, "selected");
-assert.equal(migrated.platforms.reddit.sections.popular, true);
+assert.equal(migrated.platforms.reddit.sections.discovery, true);
 assert.deepEqual(migrated.customEntries, ["example.com/reels"]);
 assert.equal(migrated.appearance, "dark", "existing settings receive the dark appearance default");
 assert.equal(R.normalizeSettings({ appearance: "light" }).appearance, "light");
@@ -53,9 +53,9 @@ const v4DirectSetting = R.normalizeSettings({
     facebook: { mode: "selected", sections: { reels: false, watch: true, marketplace: false, direct_videos: true } }
   }
 });
-assert.equal(v4DirectSetting.schemaVersion, 7);
-assert.deepEqual(v4DirectSetting.platforms.instagram.sections, { reels: false, explore: true });
-assert.deepEqual(v4DirectSetting.platforms.facebook.sections, { reels: false, watch: true, marketplace: false });
+assert.equal(v4DirectSetting.schemaVersion, 10);
+assert.deepEqual(v4DirectSetting.platforms.instagram.sections, { reels: false, home: false, explore: true, stories: false });
+assert.deepEqual(v4DirectSetting.platforms.facebook.sections, { reels: false, watch: true, home: false, groups: false, stories: false, marketplace: false });
 assert.equal(Object.hasOwn(v4DirectSetting.platforms.instagram.sections, "direct_videos"), false);
 assert.equal(typeof R.shouldBlockDirectVideos, "undefined", "The retired Direct-message behavior must not remain public");
 
@@ -68,7 +68,7 @@ const v5EntryPoints = R.normalizeSettings({
     facebook: { mode: "shortform", entryPoints: "unexpected", sections: { reels: true } }
   }
 });
-assert.equal(v5EntryPoints.schemaVersion, 7);
+assert.equal(v5EntryPoints.schemaVersion, 10);
 assert.equal(v5EntryPoints.platforms.youtube.entryPoints, "hide", "existing settings keep hiding entry points");
 assert.equal(v5EntryPoints.platforms.instagram.entryPoints, "keep");
 assert.equal(v5EntryPoints.platforms.facebook.entryPoints, "hide", "unknown values fall back to hiding");
@@ -101,7 +101,7 @@ assert.deepEqual(R.activeSurfaces(quietPaused, "youtube"), [], "paused protectio
 
 // v6 settings gain the surfaces map without losing anything, and every surface arrives off.
 const v6 = R.normalizeSettings({ schemaVersion: 6, platforms: { youtube: { mode: "shortform", entryPoints: "keep", sections: { shorts: true } } } });
-assert.equal(v6.schemaVersion, 7);
+assert.equal(v6.schemaVersion, 10);
 assert.equal(v6.platforms.youtube.entryPoints, "keep", "the entry-point choice survives the migration");
 assert.deepEqual(v6.platforms.youtube.surfaces, { homeFeed: false, sidebar: false, comments: false, endScreen: false });
 
@@ -119,7 +119,7 @@ assert.equal(tamperedUltimate.schedulePreset, "always");
 assert.equal(tamperedUltimate.platforms.instagram.mode, "off");
 const coreUltimate = R.createUltimateSettings(R.normalizeSettings({ platforms: { youtube: { mode: "off" }, tiktok: { mode: "off" } } }), "block_shortform");
 assert.equal(coreUltimate.platforms.youtube.mode, "shortform");
-assert.equal(coreUltimate.platforms.tiktok.mode, "all");
+assert.equal(coreUltimate.platforms.tiktok.mode, "shortform");
 assert.equal(R.releaseUltimateSettings(coreUltimate).ultimate.enabled, false);
 const keepUltimate = R.createUltimateSettings(R.normalizeSettings({ platforms: { youtube: { mode: "shortform", entryPoints: "keep" } } }), "keep_current");
 assert.equal(keepUltimate.platforms.youtube.entryPoints, "keep", "the lock snapshot keeps the entry-point choice");
@@ -139,8 +139,12 @@ assert.equal(R.shouldBlockUrl(defaults, "https://www.instagram.com/reels/abc").b
 assert.equal(R.shouldBlockUrl(defaults, "https://www.instagram.com/direct/inbox/").blocked, false);
 assert.equal(R.shouldBlockUrl(defaults, "https://www.facebook.com/reel/abc").blocked, true);
 assert.equal(R.platformForUrl("https://www.messenger.com/t/friend"), null, "Messenger must remain outside ReelLess site access");
-assert.equal(R.shouldBlockUrl(defaults, "https://www.tiktok.com/messages").blocked, true);
-assert.equal(R.youtubeWatchUrl("https://m.youtube.com/shorts/a_b-9"), "https://m.youtube.com/watch?v=a_b-9");
+// TikTok defaults to shortform so utilities stay available; feed/video pages are still blocked.
+assert.equal(R.shouldBlockUrl(defaults, "https://www.tiktok.com/messages").blocked, false);
+assert.equal(R.shouldBlockUrl(defaults, "https://www.tiktok.com/").blocked, true);
+// Shorts are never converted to watch URLs: YouTube plays Shorts videos on /watch pages too,
+// so a conversion would leave the Short fully watchable. Blocked Shorts stop in place instead.
+assert.equal(R.youtubeWatchUrl, undefined, "the Shorts-to-watch conversion must stay removed");
 
 // Handle-scoped entry points reach the same players as the canonical paths, so they must be
 // matched too. Each of these leaked before the section patterns were introduced.
@@ -170,6 +174,217 @@ for (const url of preserved) {
   assert.equal(R.shouldBlockUrl(defaults, url).blocked, false, `${url} must stay available`);
 }
 
+// X v8: remove video URL guesses, migrate Explore without broadening restrictions, including locks.
+assert.deepEqual(defaults.platforms.x, { mode: "off", entryPoints: "hide", sections: { home: false, explore: false, notifications: false, messages: false }, surfaces: { xExplore: false, xSidebar: false } });
+const oldX = { mode: "selected", entryPoints: "keep", sections: { home: true, explore: true, video: true } };
+const migratedX = R.normalizeSettings({ schemaVersion: 7, platforms: { x: oldX } });
+assert.deepEqual(migratedX.platforms.x, { mode: "selected", entryPoints: "keep", sections: { home: true, explore: false, notifications: false, messages: false }, surfaces: { xExplore: true, xSidebar: false } });
+assert.deepEqual(R.normalizeSettings(migratedX), migratedX, "migration is idempotent");
+const lockedX = R.normalizeSettings({ schemaVersion: 7, platforms: { x: { mode: "off" } }, ultimate: { enabled: true, profile: "keep_current", lockedPlatforms: { x: oldX } } });
+assert.deepEqual(lockedX.platforms.x, migratedX.platforms.x);
+assert.deepEqual(lockedX.ultimate.lockedPlatforms.x, migratedX.platforms.x);
+assert.equal(lockedX.ultimate.enabled, true);
+for (const value of ["shortform", { ...oldX, mode: "shortform" }]) {
+  const migrated = R.normalizeSettings({ schemaVersion: 7, platforms: { x: value } });
+  assert.equal(migrated.platforms.x.mode, "off");
+  assert.deepEqual(R.activeSurfaces(migrated, "x"), []);
+}
+const videoOnly = R.normalizeSettings({ schemaVersion: 7, platforms: { x: { mode: "selected", sections: { video: true } } } });
+assert.equal(videoOnly.platforms.x.sections.home, false);
+assert.deepEqual(videoOnly.platforms.x.surfaces, { xExplore: false, xSidebar: false });
+for (const host of ["x.com", "www.x.com", "twitter.com", "mobile.twitter.com"]) {
+  for (const path of ["/", "/home", "/home/"]) assert.equal(R.shouldBlockUrl(migratedX, `https://${host}${path}`).blocked, true);
+  for (const path of ["/explore", "/explore/tabs/trending", "/search?q=work", "/notifications", "/messages", "/friend", "/friend/status/123", "/i/status/123", "/video/123", "/i/bookmarks", "/i/lists/123", "/compose/post"]) {
+    assert.equal(R.shouldBlockUrl(migratedX, `https://${host}${path}`).blocked, false, `${path} must remain available`);
+  }
+}
+
+// X Explore page blocking is opt-in and never enabled by the legacy recommendation flag.
+const explorePage = R.normalizeSettings({ platforms: { x: { mode: "selected", sections: { home: false, explore: true }, surfaces: { xExplore: false, xSidebar: false } } } });
+assert.equal(explorePage.platforms.x.sections.explore, true, "an explicit Explore page choice in the current shape must survive");
+for (const path of ["/explore", "/explore/", "/explore/tabs/trending", "/explore/tabs/for-you"]) {
+  const decision = R.shouldBlockUrl(explorePage, `https://x.com${path}`);
+  assert.equal(decision.blocked, true, `${path} is the Explore discovery page`);
+  assert.equal(decision.section.id, "explore");
+}
+for (const path of ["/", "/home", "/search?q=work", "/notifications", "/messages", "/friend", "/friend/status/123", "/i/bookmarks"]) {
+  assert.equal(R.shouldBlockUrl(explorePage, `https://x.com${path}`).blocked, false, `${path} stays available while only Explore is blocked`);
+}
+assert.equal(R.sectionBlocked(explorePage, "x", "explore"), true);
+assert.equal(R.sectionBlocked(migratedX, "x", "explore"), false, "legacy recommendation hiding must not become page blocking");
+
+// Reddit v9 replaces two guessed video-community URLs with intentional focus controls.
+assert.deepEqual(defaults.platforms.reddit, { mode: "off", entryPoints: "hide", sections: { home: false, discovery: false, chat: false, notifications: false }, surfaces: { redditSidebar: false } });
+const oldReddit = { mode: "selected", entryPoints: "keep", sections: { popular: true, all: false, shorts: true } };
+const migratedReddit = R.normalizeSettings({ schemaVersion: 8, platforms: { reddit: oldReddit } });
+assert.deepEqual(migratedReddit.platforms.reddit, { mode: "selected", entryPoints: "keep", sections: { home: false, discovery: true, chat: false, notifications: false }, surfaces: { redditSidebar: false } });
+assert.deepEqual(R.normalizeSettings(migratedReddit), migratedReddit, "Reddit migration is idempotent");
+for (const value of ["shortform", { mode: "shortform", sections: { shorts: true } }]) {
+  const retired = R.normalizeSettings({ schemaVersion: 8, platforms: { reddit: value } });
+  assert.equal(retired.platforms.reddit.mode, "off");
+  assert.deepEqual(retired.platforms.reddit.sections, { home: false, discovery: false, chat: false, notifications: false });
+}
+const redditFocus = R.normalizeSettings({ platforms: { reddit: { mode: "selected", sections: { home: true, discovery: true }, surfaces: { redditSidebar: true } } } });
+for (const url of ["https://www.reddit.com/", "https://www.reddit.com/?feed=home", "https://reddit.com/?feed=following"]) {
+  assert.equal(R.shouldBlockUrl(redditFocus, url).section.id, "home", `${url} is Home`);
+}
+for (const url of ["https://www.reddit.com/r/popular/", "https://www.reddit.com/r/all/", "https://www.reddit.com/news/", "https://www.reddit.com/explore/", "https://www.reddit.com/?feed=news", "https://reddit.com/?feed=popular"]) {
+  const decision = R.shouldBlockUrl(redditFocus, url);
+  assert.equal(decision.blocked, true, `${url} is a discovery feed`);
+  assert.equal(decision.section.id, "discovery");
+}
+for (const url of ["https://www.reddit.com/r/codex/", "https://www.reddit.com/r/codex/comments/abc/post/", "https://www.reddit.com/search/?q=focus", "https://www.reddit.com/notifications", "https://www.reddit.com/chat", "https://www.reddit.com/user/me/saved/"]) {
+  assert.equal(R.shouldBlockUrl(redditFocus, url).blocked, false, `${url} stays available`);
+}
+assert.deepEqual(R.activeSurfaces(redditFocus, "reddit"), ["redditSidebar"]);
+
+// Checklist sections stay opt-in: every section beyond the short-form defaults arrives off,
+// each with a description naming the tab it removes so the checklist explains itself.
+assert.deepEqual(R.platformById("youtube").sections.map((section) => section.id), ["shorts", "home", "trending"]);
+assert.deepEqual(R.platformById("instagram").sections.map((section) => section.id), ["reels", "home", "explore", "stories"]);
+assert.deepEqual(R.platformById("facebook").sections.map((section) => section.id), ["reels", "watch", "home", "groups", "stories", "marketplace"]);
+assert.deepEqual(R.platformById("tiktok").sections.map((section) => section.id), ["feed", "videos", "live", "messages", "upload", "settings"]);
+assert.deepEqual(R.platformById("x").sections.map((section) => section.id), ["home", "explore", "notifications", "messages"]);
+assert.deepEqual(R.platformById("snapchat").sections.map((section) => section.id), ["spotlight", "stories"]);
+assert.deepEqual(R.platformById("twitch").sections.map((section) => section.id), ["home", "directory", "clips", "videos"]);
+assert.deepEqual(R.platformById("pinterest").sections.map((section) => section.id), ["home", "explore", "search"]);
+assert.deepEqual(R.platformById("linkedin").sections.map((section) => section.id), ["feed", "videos", "notifications"]);
+assert.deepEqual(R.platformById("threads").sections.map((section) => section.id), ["feed", "activity"]);
+assert.deepEqual(R.platformById("reddit").sections.map((section) => section.id), ["home", "discovery", "chat", "notifications"]);
+for (const platform of R.PLATFORMS) {
+  for (const section of platform.sections) {
+    assert.equal(typeof section.label, "string", `${platform.id}.${section.id} needs a checklist label`);
+    assert.ok(section.description && section.description.length > 10, `${platform.id}.${section.id} needs an explanatory description`);
+    assert.equal(defaults.platforms[platform.id].sections[section.id], Boolean(section.shortform),
+      `${platform.id}.${section.id} defaults to ${section.shortform ? "blocked" : "allowed"}`);
+  }
+}
+assert.deepEqual(R.platformById("threads").hosts, ["threads.com", "threads.net"]);
+assert.ok(R.platformById("twitch").permissionPatterns.includes("https://clips.twitch.tv/*"));
+
+const oldOptional = R.normalizeSettings({ schemaVersion: 9, platforms: {
+  snapchat: { mode: "selected", sections: { spotlight: true, stories: true } },
+  twitch: { mode: "selected", sections: { directory: true, clips: true, videos: true } },
+  pinterest: { mode: "shortform", sections: { watch: true, ideas: true, pins: false } },
+  linkedin: { mode: "selected", sections: { feed: true, video: true, jobs: true } },
+  threads: { mode: "selected", sections: { feed: true, search: true, media: true } }
+} });
+assert.deepEqual(oldOptional.platforms.snapchat.sections, { spotlight: true, stories: true });
+assert.deepEqual(oldOptional.platforms.twitch.sections, { home: false, directory: true, clips: true, videos: true }, "the retired Videos choice carries onto channel video archives");
+assert.deepEqual(oldOptional.platforms.pinterest.sections, { home: false, explore: true, search: false });
+assert.equal(oldOptional.platforms.pinterest.mode, "selected");
+assert.deepEqual(oldOptional.platforms.linkedin.sections, { feed: true, videos: false, notifications: false });
+assert.deepEqual(oldOptional.platforms.threads.sections, { feed: true, activity: false });
+const lockedOptional = R.normalizeSettings({ schemaVersion: 9, ultimate: {
+  enabled: true, profile: "keep_current", lockedPlatforms: {
+    snapchat: { mode: "selected", sections: { spotlight: true, stories: true } },
+    twitch: { mode: "selected", sections: { directory: true, clips: true, videos: true } },
+    pinterest: { mode: "shortform", sections: { watch: true, ideas: true } },
+    linkedin: { mode: "selected", sections: { feed: true, video: true, jobs: true } },
+    threads: { mode: "selected", sections: { feed: true, search: true, media: true } }
+  }
+} });
+for (const id of ["snapchat", "twitch", "pinterest", "linkedin", "threads"]) {
+  assert.deepEqual(lockedOptional.ultimate.lockedPlatforms[id], oldOptional.platforms[id], `${id} locked snapshot migrates`);
+  assert.deepEqual(lockedOptional.platforms[id], oldOptional.platforms[id], `${id} lock remains enforced`);
+}
+for (const id of ["linkedin", "threads"]) {
+  assert.equal(R.normalizeSettings({ schemaVersion: 9, platforms: { [id]: { mode: "shortform" } } }).platforms[id].mode, "off");
+}
+
+const focusedOptional = R.normalizeSettings({ platforms: {
+  snapchat: { mode: "selected", sections: { spotlight: true, stories: false } },
+  twitch: { mode: "selected", sections: { home: true, directory: true, clips: true } },
+  pinterest: { mode: "selected", sections: { home: true, explore: true } },
+  linkedin: { mode: "selected", sections: { feed: true } },
+  threads: { mode: "selected", sections: { feed: true } }
+} });
+// Stories are opt-in: Spotlight-only leaves Stories available, Stories-checked blocks them.
+const storiesOptional = R.normalizeSettings({ platforms: {
+  snapchat: { mode: "selected", sections: { spotlight: false, stories: true } },
+  instagram: { mode: "selected", sections: { reels: false, explore: false, stories: true } },
+  facebook: { mode: "selected", sections: { reels: false, watch: false, stories: true, marketplace: false } }
+} });
+assert.equal(R.shouldBlockUrl(storiesOptional, "https://www.snapchat.com/stories/abc").blocked, true);
+assert.equal(R.shouldBlockUrl(focusedOptional, "https://www.snapchat.com/stories/abc").blocked, false);
+assert.equal(R.shouldBlockUrl(storiesOptional, "https://www.instagram.com/stories/user/123/").blocked, true);
+assert.equal(R.shouldBlockUrl(defaults, "https://www.instagram.com/stories/user/123/").blocked, false, "Stories stay allowed by default");
+assert.equal(R.shouldBlockUrl(storiesOptional, "https://www.facebook.com/stories/123/").blocked, true);
+assert.equal(R.shouldBlockUrl(storiesOptional, "https://www.facebook.com/story.php?story_fbid=123").blocked, true);
+assert.equal(R.shouldBlockUrl(defaults, "https://www.facebook.com/stories/123/").blocked, false, "Stories stay allowed by default");
+assert.equal(R.shouldBlockUrl(defaults, "https://www.instagram.com/").blocked, false);
+assert.equal(R.shouldBlockUrl(defaults, "https://www.facebook.com/").blocked, false);
+const optionalRoutes = [
+  ["snapchat", ["https://www.snapchat.com/spotlight/abc"], ["https://www.snapchat.com/stories", "https://web.snapchat.com/"]],
+  ["twitch", ["https://www.twitch.tv/", "https://www.twitch.tv/directory", "https://www.twitch.tv/clips/abc", "https://clips.twitch.tv/FancySlug"], ["https://www.twitch.tv/following", "https://www.twitch.tv/somechannel", "https://www.twitch.tv/somechannel/videos", "https://dashboard.twitch.tv/"]],
+  ["pinterest", ["https://www.pinterest.com/", "https://www.pinterest.com/ideas/", "https://www.pinterest.com/explore/"], ["https://www.pinterest.com/pin/123/", "https://www.pinterest.com/search/pins/?q=desk", "https://www.pinterest.com/user/board/"]],
+  ["linkedin", ["https://www.linkedin.com/feed/"], ["https://www.linkedin.com/jobs/", "https://www.linkedin.com/messaging/", "https://www.linkedin.com/in/person/", "https://www.linkedin.com/video/123"]],
+  ["threads", ["https://www.threads.com/", "https://www.threads.net/"], ["https://www.threads.com/search", "https://www.threads.com/@person/post/abc", "https://www.threads.com/activity", "https://www.threads.com/saved", "https://www.threads.com/@person/media"]]
+];
+for (const [id, blockedUrls, allowedUrls] of optionalRoutes) {
+  for (const url of blockedUrls) assert.equal(R.shouldBlockUrl(focusedOptional, url).blocked, true, `${id}: ${url} should be blocked`);
+  for (const url of allowedUrls) assert.equal(R.shouldBlockUrl(focusedOptional, url).blocked, false, `${id}: ${url} should stay available`);
+}
+
+// Every new checklist tab resolves to its own section, blocks only when checked, and leaves
+// the platform's ordinary pages alone. Each entry enables a single section on top of defaults.
+const newSectionRoutes = [
+  ["youtube", "home", ["https://www.youtube.com/"], ["https://www.youtube.com/watch?v=abc", "https://www.youtube.com/shorts/abc", "https://www.youtube.com/feed/trending"]],
+  ["youtube", "trending", ["https://www.youtube.com/feed/trending", "https://www.youtube.com/trending"], ["https://www.youtube.com/", "https://www.youtube.com/watch?v=abc"]],
+  ["instagram", "home", ["https://www.instagram.com/"], ["https://www.instagram.com/nasa/", "https://www.instagram.com/p/photo123/", "https://www.instagram.com/reels/abc"]],
+  ["facebook", "home", ["https://www.facebook.com/"], ["https://www.facebook.com/nasa/", "https://www.facebook.com/reel/abc", "https://www.facebook.com/groups/123/"]],
+  ["facebook", "groups", ["https://www.facebook.com/groups/", "https://www.facebook.com/groups/123/"], ["https://www.facebook.com/", "https://www.facebook.com/marketplace/"]],
+  ["tiktok", "live", ["https://www.tiktok.com/live", "https://www.tiktok.com/live/tag/x"], ["https://www.tiktok.com/messages", "https://www.tiktok.com/@user"]],
+  ["x", "notifications", ["https://x.com/notifications"], ["https://x.com/home", "https://x.com/explore", "https://x.com/messages"]],
+  ["x", "messages", ["https://x.com/messages", "https://twitter.com/messages/inbox"], ["https://x.com/home", "https://x.com/notifications"]],
+  ["reddit", "chat", ["https://www.reddit.com/chat"], ["https://www.reddit.com/", "https://www.reddit.com/r/codex/comments/abc/post/"]],
+  ["reddit", "notifications", ["https://www.reddit.com/notifications"], ["https://www.reddit.com/", "https://www.reddit.com/chat"]],
+  ["twitch", "videos", ["https://www.twitch.tv/somechannel/videos", "https://www.twitch.tv/somechannel/videos/abc"], ["https://www.twitch.tv/somechannel", "https://www.twitch.tv/somechannel/clips", "https://clips.twitch.tv/FancySlug", "https://dashboard.twitch.tv/"]],
+  ["pinterest", "search", ["https://www.pinterest.com/search/pins/?q=desk"], ["https://www.pinterest.com/pin/123/", "https://www.pinterest.com/", "https://www.pinterest.com/user/board/"]],
+  ["linkedin", "videos", ["https://www.linkedin.com/video/123"], ["https://www.linkedin.com/feed/", "https://www.linkedin.com/jobs/"]],
+  ["linkedin", "notifications", ["https://www.linkedin.com/notifications/"], ["https://www.linkedin.com/feed/", "https://www.linkedin.com/messaging/"]],
+  ["threads", "activity", ["https://www.threads.com/activity"], ["https://www.threads.com/", "https://www.threads.com/search"]]
+];
+for (const [platformId, sectionId, blockedUrls, allowedUrls] of newSectionRoutes) {
+  const allOff = Object.fromEntries(R.platformById(platformId).sections.map((section) => [section.id, false]));
+  const onlyThis = R.normalizeSettings({ platforms: { [platformId]: { mode: "selected", sections: { ...allOff, [sectionId]: true } } } });
+  assert.equal(R.sectionBlocked(onlyThis, platformId, sectionId), true);
+  for (const url of blockedUrls) {
+    const decision = R.shouldBlockUrl(onlyThis, url);
+    assert.equal(decision.blocked, true, `${platformId}.${sectionId}: ${url} should be blocked`);
+    assert.equal(decision.section.id, sectionId, `${platformId}.${sectionId}: ${url} should resolve to ${sectionId}`);
+  }
+  for (const url of allowedUrls) {
+    assert.equal(R.shouldBlockUrl(onlyThis, url).blocked, false, `${platformId}.${sectionId}: ${url} must stay available`);
+  }
+  // Defaults leave every new tab allowed.
+  for (const url of blockedUrls) {
+    assert.equal(R.shouldBlockUrl(defaults, url).blocked, false, `${platformId}.${sectionId}: ${url} stays allowed by default`);
+  }
+}
+
+// Personal custom boundaries match their host (ignoring www.) with an optional path prefix,
+// never swallow platform hosts, and honor the global schedule like platforms do.
+assert.equal(R.matchCustomEntry("example.com/reels", "https://example.com/reels/123"), true);
+assert.equal(R.matchCustomEntry("example.com/reels", "https://www.example.com/reels/"), true);
+assert.equal(R.matchCustomEntry("example.com", "https://example.com/anything/here"), true);
+assert.equal(R.matchCustomEntry("example.com/reels", "https://example.com/home"), false);
+assert.equal(R.matchCustomEntry("example.com/reels", "https://other.com/reels/123"), false);
+assert.equal(R.matchCustomEntry("example.com/reels", "https://example.com/reelsy/123"), false, "a path prefix must end at a boundary");
+assert.equal(R.matchCustomEntry("m.example.com/feed", "https://m.example.com/feed/1"), true);
+assert.equal(R.matchCustomEntry("not a url", "https://example.com/"), false);
+assert.equal(R.customEntryForUrl(["example.com/reels", "another.test/x"], "https://another.test/x/1"), "another.test/x");
+assert.equal(R.customEntryForUrl(["example.com/reels"], "https://example.com/home"), null);
+assert.equal(R.customScriptPattern("example.com/reels"), "https://example.com/reels*");
+assert.equal(R.customScriptPattern("example.com"), "https://example.com/*");
+assert.ok(R.customScriptId("example.com/reels") !== R.customScriptId("example.com/other"), "registration ids stay distinct");
+const customOnly = R.normalizeSettings({ customEntries: ["example.com/reels"] });
+assert.equal(R.shouldBlockCustomUrl(customOnly, "https://example.com/reels/123").blocked, true);
+assert.equal(R.shouldBlockCustomUrl(customOnly, "https://example.com/home").blocked, false);
+assert.equal(R.shouldBlockCustomUrl(customOnly, "https://www.youtube.com/shorts/abc").blocked, false, "platform hosts stay under platform controls");
+assert.equal(R.shouldBlockCustomUrl({ ...customOnly, protectionEnabled: false }, "https://example.com/reels/123").blocked, false, "pausing releases custom boundaries too");
+assert.equal(R.shouldBlockCustomUrl(defaults, "https://example.com/reels/123").blocked, false, "no entries means nothing custom is blocked");
+
 // TikTok's "/@" path prefix could never match a real profile URL, and the bug was masked by the
 // platform defaulting to Block all. Narrowing the mode is what used to expose it.
 const tiktokShortform = R.normalizeSettings({ platforms: { tiktok: { mode: "shortform" } } });
@@ -181,10 +396,13 @@ assert.equal(
   "the unreachable /@ path prefix should be gone"
 );
 
-// A page's Videos tab belongs to Watch, so it follows that section rather than the Reels default.
+// A page's Videos tab belongs to Watch, which is part of the default protection because feed
+// videos autoplay in place like Reels. It can still be allowed via Selected sections.
 const facebookWatch = R.normalizeSettings({ platforms: { facebook: { mode: "selected", sections: { reels: true, watch: true, marketplace: false } } } });
-assert.equal(R.shouldBlockUrl(defaults, "https://www.facebook.com/nasa/videos/").blocked, false, "Watch is not short-form, so the default mode leaves it alone");
+const facebookWatchOff = R.normalizeSettings({ platforms: { facebook: { mode: "selected", sections: { reels: true, watch: false, marketplace: false } } } });
+assert.equal(R.shouldBlockUrl(defaults, "https://www.facebook.com/nasa/videos/").blocked, true, "Watch follows the default protection");
 assert.equal(R.shouldBlockUrl(facebookWatch, "https://www.facebook.com/nasa/videos/").blocked, true);
+assert.equal(R.shouldBlockUrl(facebookWatchOff, "https://www.facebook.com/nasa/videos/").blocked, false, "Watch can be allowed via Selected sections");
 assert.equal(R.sectionForUrl(R.platformById("facebook"), new URL("https://www.facebook.com/nasa/videos/")).id, "watch");
 
 // Every route that reaches a Facebook Reel must be recognised as Reels, or the default mode lets a
@@ -198,13 +416,25 @@ for (const path of ["/reel/abc", "/reels/", "/watch/reels/abc", "/share/r/AbC123
   assert.equal(R.shouldBlockUrl(defaults, `https://www.facebook.com${path}`).blocked, true, `${path} must be blocked by default`);
 }
 
-// The video routes belong to Watch: off in the default mode, blocked once Watch is selected.
-for (const path of ["/watch/?v=1", "/video.php?v=1", "/share/v/AbC123/", "/nasa/videos/"]) {
+// The video routes belong to Watch: blocked by default, allowed once Watch is deselected.
+for (const path of ["/watch/?v=1", "/video.php?v=1", "/share/v/AbC123/", "/nasa/videos/", "/live/", "/nasa/live/", "/watch/live/"]) {
   const url = `https://www.facebook.com${path}`;
   assert.equal(facebookSection(path.split("?")[0]), "watch", `${path} is a Watch route`);
-  assert.equal(R.shouldBlockUrl(defaults, url).blocked, false, `${path} is not short-form`);
+  assert.equal(R.shouldBlockUrl(defaults, url).blocked, true, `${path} is blocked by default`);
+  assert.equal(R.shouldBlockUrl(facebookWatchOff, url).blocked, false, `${path} can be allowed via Selected sections`);
   assert.equal(R.shouldBlockUrl(facebookWatch, url).blocked, true, `${path} must follow the Watch choice`);
 }
+
+// fb.watch links are video shares only: recognised as Facebook Watch wherever they appear,
+// so feed cards carrying them are hidden and clicks on them are refused.
+for (const url of ["https://fb.watch/AbC123/", "https://www.fb.watch/AbC123/"]) {
+  assert.equal(R.platformForUrl(url).id, "facebook", `${url} belongs to Facebook`);
+  assert.equal(R.sectionForUrl(R.platformById("facebook"), new URL(url)).id, "watch", `${url} is a Watch route`);
+  assert.equal(R.shouldBlockUrl(defaults, url).blocked, true, `${url} must be blocked by default`);
+  assert.equal(R.shouldBlockUrl(facebookWatchOff, url).blocked, false, `${url} can be allowed via Selected sections`);
+}
+assert.equal(R.platformForUrl("https://fb.com/profile/").id, "facebook", "fb.com links belong to Facebook");
+assert.equal(R.shouldBlockUrl(defaults, "https://fb.com/profile/").blocked, false, "a plain fb.com page is not a video route");
 
 // Neither share prefix may swallow an ordinary shared post, and a page whose name merely starts
 // with "r" is not a share route.

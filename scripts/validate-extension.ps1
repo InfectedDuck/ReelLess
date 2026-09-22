@@ -32,6 +32,7 @@ $expectedCoreMatches = @(
   "https://www.youtube.com/*", "https://m.youtube.com/*", "https://youtube.com/*",
   "https://www.instagram.com/*", "https://m.instagram.com/*", "https://instagram.com/*",
   "https://www.facebook.com/*", "https://m.facebook.com/*", "https://facebook.com/*",
+  "https://fb.com/*", "https://www.fb.com/*", "https://fb.watch/*", "https://www.fb.watch/*",
   "https://www.tiktok.com/*", "https://m.tiktok.com/*", "https://tiktok.com/*"
 )
 $scripts = @($manifest.content_scripts)

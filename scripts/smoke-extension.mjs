@@ -118,13 +118,21 @@ try {
     0,
     "with :has() available the script should not be marking elements at all"
   );
+  // A direct Short visit is blocked in place with the focus screen. It used to convert to
+  // the /watch URL, but YouTube plays Shorts videos on /watch pages too, so the Short stayed
+  // fully watchable.
   await youtube.goto("https://www.youtube.com/shorts/directfixture");
-  await youtube.waitForURL("https://www.youtube.com/watch?v=directfixture");
+  await youtube.waitForSelector("#reelless-focus-screen");
+  assert.equal(
+    await youtube.evaluate(() => window.location.pathname),
+    "/shorts/directfixture",
+    "a Short must not convert to a watchable /watch URL"
+  );
 
-  // Keep mode leaves the Shorts shelf visible but still converts an attempt to open a Short.
+  // Keep mode leaves the Shorts shelf visible but still stops an attempt to open a Short.
   await settings.bringToFront();
   assert.equal(await settings.locator("#corePlatforms select[data-entry-points]").count(), 4, "each core card offers the entry-point choice");
-  assert.equal(await settings.locator('#corePlatforms [data-entry-choice="tiktok"]').isHidden(), true, "Block all leaves no feed entry points to configure");
+  assert.equal(await settings.locator('#corePlatforms [data-entry-choice="tiktok"]').isHidden(), false, "shortform TikTok still configures feed entry points on allowed utility pages");
   assert.equal(await settings.locator('#corePlatforms select[data-entry-points="youtube"]').inputValue(), "hide", "hiding is the default");
   await settings.selectOption('#corePlatforms select[data-entry-points="youtube"]', "keep");
   await settings.waitForTimeout(300);
@@ -155,7 +163,12 @@ try {
     "the stylesheet gate should be released in keep mode"
   );
   await youtube.locator("#shorts a").click();
-  await youtube.waitForURL("https://www.youtube.com/watch?v=abc");
+  await youtube.waitForSelector("#reelless-focus-screen");
+  assert.equal(
+    await youtube.evaluate(() => window.location.pathname),
+    "/watch",
+    "a blocked Short click must not navigate away from the page"
+  );
   await settings.selectOption('#corePlatforms select[data-entry-points="youtube"]', "hide");
   await settings.waitForTimeout(300);
   await youtube.goto("https://www.youtube.com/watch?v=fixture");
@@ -187,7 +200,19 @@ try {
   await instagram.route("https://www.instagram.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: instagramFeed }));
   await instagram.goto("https://www.instagram.com/");
   await instagram.waitForFunction(() => document.documentElement.dataset.reellessMode === "hide");
-  assert.deepEqual(await hiddenIds(instagram), ["inner-reel", "rail-reels", "reel", "reel-item", "tab-reels"], "Instagram: only Reel cards, the nav-rail entry and the profile tab are hidden");
+  assert.deepEqual(await hiddenIds(instagram), ["rail-reels", "tab-reels"], "Instagram: the nav-rail entry and the profile tab collapse outright");
+  // On Home the feed keeps its geometry: Reel cards collapse to a compact placeholder
+  // instead of disappearing, so the loader never retriggers mid-scroll.
+  for (const id of ["reel", "reel-item", "inner-reel"]) {
+    const box = await instagram.evaluate((elId) => {
+      const node = document.getElementById(elId);
+      const rect = node.getBoundingClientRect();
+      return { height: rect.height, visibility: getComputedStyle(node).visibility };
+    }, id);
+    assert.equal(box.height, 56, `Instagram: ${id} keeps a compact placeholder`);
+    assert.equal(box.visibility, "visible", `Instagram: ${id} placeholder stays laid out`);
+  }
+  assert.equal(await instagram.locator("#post").evaluate((node) => node.getBoundingClientRect().height === 56), false, "ordinary posts keep their natural height");
   assert.equal(await instagram.evaluate(() => document.querySelectorAll("[data-reelless-hidden]").length), 0, "with :has() the script must not mark anything on Instagram");
 
   // A page whose only card wraps the main region must never lose that region.
@@ -234,7 +259,9 @@ try {
   assert.equal(await instagramDirect.locator("#reelless-direct-blocked-notice").count(), 0);
   assert.deepEqual(await hiddenIds(instagramDirect), [], "nothing in a Direct thread is hidden, Reel link included");
   await instagramDirect.locator("#sharedReel").click();
-  await instagramDirect.waitForURL("https://www.instagram.com/");
+  await instagramDirect.waitForTimeout(400);
+  assert.equal(await instagramDirect.evaluate(() => window.location.pathname), "/direct/t/friend", "a Reel opened from a conversation is refused in place and returns to the thread");
+  assert.equal(await instagramDirect.locator("#reelless-focus-screen").count(), 0, "a refused conversation open raises no screen");
 
   // A profile's Reels tab returns to that profile rather than the generic feed.
   await instagram.goto("https://www.instagram.com/nasa/reels/");
@@ -259,18 +286,41 @@ try {
   }));
   await facebook.goto("https://www.facebook.com/");
   await facebook.waitForFunction(() => document.documentElement.dataset.reellessMode === "hide");
-  assert.deepEqual(
-    await hiddenIds(facebook),
-    ["fb-reels-heading", "fb-reels-unit", "fb-shared-link", "nav-reels"],
-    "Facebook: the Reels shelf goes with its heading, the nav entry goes, a post holding a comment thread keeps its place and loses only its Reel link"
+  assert.deepEqual(await hiddenIds(facebook), [], "Facebook: feed posts keep their geometry instead of collapsing");
+  // The Reels shelf keeps a compact placeholder with its heading; a post holding a comment
+  // thread keeps its place while its Reel link goes invisible, as does the nav entry.
+  const fbUnit = await facebook.evaluate(() => {
+    const node = document.getElementById("fb-reels-unit");
+    const rect = node.getBoundingClientRect();
+    return { height: rect.height, visibility: getComputedStyle(node).visibility };
+  });
+  assert.equal(fbUnit.height, 56, "Facebook: the Reels shelf keeps a compact placeholder");
+  assert.equal(fbUnit.visibility, "visible", "Facebook: the Reels placeholder stays laid out");
+  assert.equal(
+    await facebook.evaluate(() => getComputedStyle(document.getElementById("fb-shared-link")).visibility),
+    "hidden",
+    "Facebook: the comment-thread post keeps its place while its Reel link goes invisible"
   );
-  assert.equal(await facebook.evaluate(() => document.querySelectorAll("[data-reelless-hidden]").length), 0, "with :has() the script must not mark anything on Facebook");
+  const fbNav = await facebook.evaluate(() => {
+    const item = document.getElementById("nav-reels");
+    const link = item.querySelector("a");
+    return { height: item.getBoundingClientRect().height, linkVisibility: getComputedStyle(link).visibility };
+  });
+  assert.equal(fbNav.height, 56, "Facebook: the nav Reels entry keeps a compact placeholder");
+  assert.equal(fbNav.linkVisibility, "hidden", "Facebook: the nav Reels link goes invisible without moving the feed");
+  assert.equal(await facebook.locator("#fb-post").evaluate((node) => node.getBoundingClientRect().height === 56), false, "ordinary Facebook posts keep their natural height");
+  // Watch is part of the default protection and needs the script (pausing, dialog blocking),
+  // so the script stays on for Facebook even where :has() exists; Reels hiding is still asserted
+  // through layout above. The default must also arm the video-post rule.
+  assert.ok((await facebook.evaluate(() => document.documentElement.dataset.reellessSurfaces || "")).includes("videoPosts"), "default protection must arm the Facebook video-post rule");
   await facebook.goto("https://www.facebook.com/messages/t/12345/");
   await facebook.waitForTimeout(250);
   assert.equal(await facebook.evaluate(() => document.documentElement.dataset.reellessMode), "off", "Messenger releases the stylesheet gate");
   assert.deepEqual(await hiddenIds(facebook), [], "nothing in a Messenger thread is hidden, Reel link included");
   await facebook.locator("#sharedReel").click();
-  await facebook.waitForURL("https://www.facebook.com/");
+  await facebook.waitForTimeout(400);
+  assert.equal(await facebook.evaluate(() => window.location.pathname), "/messages/t/12345/", "a Reel opened from Messenger is refused in place and returns to the thread");
+  assert.equal(await facebook.locator("#reelless-focus-screen").count(), 0, "a refused conversation open raises no screen");
   await facebook.goto("https://www.facebook.com/reel/directfixture");
   await facebook.waitForURL("https://www.facebook.com/");
 
