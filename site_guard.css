@@ -24,11 +24,24 @@ html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
   ytd-compact-video-renderer:has(a[href*="/shorts/"]),
   ytm-shorts-lockup-view-model:has(a[href*="/shorts/"]),
   ytm-shorts-lockup-view-model-v2:has(a[href*="/shorts/"]),
-  /* Navigation into Shorts: sidebar entries, the mini sidebar, and channel tabs. */
-  ytd-guide-entry-renderer:has(a[href^="/shorts"]),
-  ytd-mini-guide-entry-renderer:has(a[href^="/shorts"]),
-  yt-tab-shape:has(a[href*="/shorts"]),
-  tp-yt-paper-tab:has(a[href*="/shorts"])
+  yt-lockup-view-model:has(a[href*="/shorts/"]),
+  yt-chip-cloud-chip-renderer:has(a[href*="/shorts"], a[title="Shorts"]),
+  /* Navigation into Shorts: sidebar entries, the mini sidebar, and channel tabs.
+     Guide anchors carry title="Shorts" (and the mini entry aria-label="Shorts"); matching
+     on href alone misses renderings where the endpoint is resolved late, and matching only
+     href^="/shorts" misses /feed/shorts. The bare-link fallbacks catch nav entries whose
+     wrapper tag changed, and any Shorts link outside a known card. */
+  ytd-guide-entry-renderer:has(a[href*="/shorts"], a[href*="/feed/shorts"], a[title="Shorts"]),
+  ytd-mini-guide-entry-renderer:has(a[href*="/shorts"], a[href*="/feed/shorts"], a[title="Shorts"]),
+  ytd-mini-guide-entry-renderer[aria-label="Shorts"],
+  yt-tab-shape:has(a[href*="/shorts"], a[title="Shorts"]),
+  tp-yt-paper-tab:has(a[href*="/shorts"], a[title="Shorts"]),
+  [tab-title="Shorts"],
+  ytm-pivot-bar-item-renderer:has(a[href*="/shorts"], .pivot-shorts),
+  a[href="/shorts"],
+  a[href="/shorts/"],
+  a[href^="/shorts?"],
+  a[href^="/feed/shorts"]
 ) {
   display: none !important;
 }
@@ -56,21 +69,203 @@ html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
   a[href$="/reels"],
   /* Facebook resolves a "/share/r/" link to a Reel, so it is a Reel entry point too. */
   a[href*="/share/r/"]
-) {
+):not(:where(
+  html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li),
+  html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li) *,
+  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li),
+  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li) *
+)) {
   display: none !important;
+}
+
+/* Facebook feed keeps the same idea as Instagram Home: a compact inert placeholder instead of
+   each blocked post's full media height, so a run of videos never collapses the feed and yanks
+   the reader. Reel posts read "Reel blocked" (Instagram's equivalent reads "Reel hidden");
+   Watch posts read "Video blocked" (see the videoPosts block below). Navigation entries,
+   profile-grid tiles and theater dialogs still collapse normally; only feed post containers
+   become placeholders. */
+html[data-reelless-facebook-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li)
+  :is(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) {
+  visibility: hidden !important;
+}
+
+html[data-reelless-facebook-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]),
+html[data-reelless-facebook-feed]
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) {
+  box-sizing: border-box !important;
+  block-size: 56px !important;
+  min-block-size: 56px !important;
+  max-block-size: 56px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  position: relative !important;
+  visibility: visible !important;
+}
+
+html[data-reelless-facebook-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) > *,
+html[data-reelless-facebook-feed]
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) > * {
+  visibility: hidden !important;
+}
+
+html[data-reelless-facebook-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])::after,
+html[data-reelless-facebook-feed]
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])::after {
+  content: "Reel blocked";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #8e8e8e;
+  font: 600 12px/1 system-ui, sans-serif;
+  letter-spacing: .01em;
+  visibility: visible;
+}
+
+/* Instagram's Home loader is sensitive to a run of posts disappearing completely. Keep a compact
+   inert placeholder instead of each Reel's full media height. Navigation and profile/Explore
+   tiles still collapse normally. */
+html[data-reelless-instagram-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(article, [role="article"], [role="listitem"], li)
+  :is(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]) {
+  visibility: hidden !important;
+}
+
+html[data-reelless-instagram-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(article, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]),
+html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has([data-reelless-hidden="true"]) {
+  box-sizing: border-box !important;
+  block-size: 56px !important;
+  min-block-size: 56px !important;
+  max-block-size: 56px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  position: relative !important;
+  visibility: visible !important;
+}
+
+html[data-reelless-instagram-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(article, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"]) > *,
+html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has([data-reelless-hidden="true"]) > * {
+  visibility: hidden !important;
+}
+
+html[data-reelless-instagram-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(article, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"])::after,
+html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"])):has([data-reelless-hidden="true"])::after {
+  content: "Reel hidden";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #8e8e8e;
+  font: 600 12px/1 system-ui, sans-serif;
+  letter-spacing: .01em;
+  visibility: visible;
+}
+
+/* The fallback marker can also land directly on an otherwise bare link. */
+html[data-reelless-instagram-feed] [data-reelless-hidden="true"],
+html[data-reelless-facebook-feed] [data-reelless-hidden="true"] {
+  visibility: hidden !important;
 }
 
 /* Facebook plays a feed video in place and opens it in a dialog, without ever changing the
    address, so neither the navigation guard nor the click guard can refuse it. When the Watch
    section is blocked, the posts carrying those videos are removed from the feed instead, which is
    the only point at which the decision can still be made. A feed post is div[aria-posinset]; the
-   article form is a fallback for renderings that still use it. Reels are handled above and are
-   already gone by the time these rules matter. */
+   article and data-pagelet forms cover older and newer renderings. Reels are handled above and are
+   already gone by the time these rules matter, so plain video rules exclude anything carrying a
+   Reel link: blocking Watch while keeping Reels must leave Reels playable.
+    A video post is recognised three ways: it already renders a <video>, it shows a play control
+    before any <video> exists, or it carries a Watch link (/watch, /video.php, /share/v/, fb.watch,
+    a page's /videos/ tab). Play-control labels are localised (a ?locale=ru_RU page has Russian
+    labels), so the seek bar roles every player renders are matched too. Live videos render a
+    player, so the <video> and play-control rules cover them without matching text live-blogs.
+    The /watch/reels/ route is a Reel, not a Watch video, so it is excluded here and stays with
+    Reels. A bare video selector is deliberately absent here: it cannot tell a Reel player
+    from a Watch player, so it would also take Reels while only Watch is blocked. Renamed
+    wrappers no post pattern matches are the script's job — it walks up to the post-sized
+    block and still honours the Reels exception. */
 html[data-reelless-surfaces~="videoPosts"] :is(
-  div[aria-posinset]:has(video),
-  [role="article"]:not(:has([role="article"])):has(video)
-) {
+  /* One innermost-post pattern instead of one rule per tag: every :has() the style engine must
+     re-resolve on each scroll insertion costs scrolling budget, so the container variants share a
+     single selector per content kind. */
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])),
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"]),
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])),
+  a[href*="/watch"]:not([href*="/watch/reels"]),
+  a[href*="/video.php"],
+  a[href*="/share/v/"],
+  a[href*="fb.watch"],
+  a[href*="/videos/"],
+  a[href$="/videos"],
+  /* The theater overlay plays without changing the address. It is usually div[role="dialog"],
+     but the role is not contractual, so aria-modal overlays count too. The player match covers
+     the seek/player chrome as well as the <video> itself, so a theater whose video has not
+     booted yet is still hidden before it can flash. */
+  :is(div[role="dialog"], div[aria-modal="true"], div[role="alertdialog"]):has(video, [aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"], [data-testid*="video"], [data-testid*="Video"], [data-testid*="player"], [data-testid*="Player"])
+):not(:where(
+  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li),
+  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li) *
+)) {
   display: none !important;
+}
+
+/* Watch-post placeholder on the Facebook feed: the same compact-notice idea as Reels above,
+   reading "Video blocked". Gated on both the feed marker and the videoPosts token, so it only
+   ever applies while Watch is blocked with Hidden entry points; keep mode and conversations
+   are untouched. Posts carrying a Reel link are excluded here and stay with "Reel blocked". */
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])),
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"]),
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])),
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])) {
+  box-sizing: border-box !important;
+  block-size: 72px !important;
+  min-block-size: 72px !important;
+  max-block-size: 72px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  position: relative !important;
+  visibility: visible !important;
+}
+
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])) > *,
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"]) > *,
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])) > *,
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])) > * {
+  visibility: hidden !important;
+}
+
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"]))::after,
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"])::after,
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"]))::after,
+html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]
+  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]))::after {
+  content: "Video blocked";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #8e8e8e;
+  font: 600 12px/1 system-ui, sans-serif;
+  letter-spacing: .01em;
+  visibility: visible;
 }
 
 /* Optional YouTube surfaces. Each is opt-in and off until switched on, so the attribute is absent
@@ -109,7 +304,19 @@ html[data-reelless-surfaces~="endScreen"] :is(
   display: none !important;
 }
 
-[data-reelless-hidden="true"] {
+[data-reelless-hidden="true"]:not(:where(
+  html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li),
+  html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li) *,
+  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li),
+  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li) *
+)) {
+  display: none !important;
+}
+
+/* X gates are opt-in; Explore is also gated by its current route in the script. */
+html[data-reelless-surfaces~="xExplore"] [data-reelless-x-hidden="xExplore"],
+html[data-reelless-surfaces~="xSidebar"] [data-reelless-x-hidden="xSidebar"],
+html[data-reelless-surfaces~="redditSidebar"] [data-reelless-reddit-hidden="sidebar"] {
   display: none !important;
 }
 
@@ -119,6 +326,7 @@ html[data-reelless-surfaces~="endScreen"] :is(
   z-index: 2147483647;
   display: grid;
   place-items: center;
+  overflow-y: auto;
   padding: 24px;
   background: rgba(22, 31, 26, .66);
   color: #1d2520;
@@ -127,6 +335,7 @@ html[data-reelless-surfaces~="endScreen"] :is(
 }
 
 #reelless-focus-screen .reelless-card {
+  box-sizing: border-box;
   width: min(468px, calc(100vw - 48px));
   padding: 30px;
   border: 1px solid #c9d7ce;
@@ -164,7 +373,20 @@ html[data-reelless-surfaces~="endScreen"] :is(
   gap: 9px;
 }
 
-#reelless-focus-screen button {
+#reelless-focus-screen .reelless-destinations { margin: 0 0 24px; padding: 0; border: 0; background: transparent; }
+#reelless-focus-screen .reelless-destinations p { margin-bottom: 10px; font-weight: 600; }
+#reelless-focus-screen .reelless-links { display: flex; flex-wrap: wrap; gap: 9px; }
+#reelless-focus-screen .reelless-links a {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  margin: 0;
+  text-decoration: none;
+}
+#reelless-focus-screen .reelless-links a:hover { text-decoration: underline; }
+
+#reelless-focus-screen button,
+#reelless-focus-screen .reelless-links a {
   min-height: 40px;
   padding: 0 14px;
   border: 1px solid #87958c;
@@ -181,7 +403,8 @@ html[data-reelless-surfaces~="endScreen"] :is(
   color: #fff;
 }
 
-#reelless-focus-screen button:focus-visible {
+#reelless-focus-screen button:focus-visible,
+#reelless-focus-screen .reelless-links a:focus-visible {
   outline: 2px solid #28745b;
   outline-offset: 2px;
 }
@@ -201,5 +424,6 @@ html[data-reelless-surfaces~="endScreen"] :is(
 #reelless-focus-screen[data-theme="dark"] .reelless-mark { color: #a5d1b6; }
 #reelless-focus-screen[data-theme="dark"] h1 { color: #edf0ed; }
 #reelless-focus-screen[data-theme="dark"] p { color: #b8c4bb; }
-#reelless-focus-screen[data-theme="dark"] button { border-color: #68796f; background: transparent; color: #edf0ed; }
+#reelless-focus-screen[data-theme="dark"] button,
+#reelless-focus-screen[data-theme="dark"] .reelless-links a { border-color: #68796f; background: transparent; color: #edf0ed; }
 #reelless-focus-screen[data-theme="dark"] button[data-action="pause"] { border-color: #4c9876; background: #3d8066; color: #fff; }

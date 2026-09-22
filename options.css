@@ -105,7 +105,16 @@ label textarea { min-height: 78px; padding-top: 9px; padding-bottom: 9px; line-h
 .section-choices { display: flex; flex-wrap: wrap; gap: 8px 13px; margin-top: 11px; }
 .section-choices label { display: flex; align-items: center; gap: 6px; color: #536259; font-size: 11px; font-weight: 600; }
 .section-choices input { min-height: auto; margin: 0; accent-color: #28745b; }
+.focus-choices { flex-direction: column; gap: 14px; }
+.focus-choices label { align-items: flex-start; }
+.focus-choices input { flex: none; width: 14px; height: 14px; margin-top: 2px; padding: 0; }
+.master-switch input, .core-toggle input { width: 1px; height: 1px; min-height: 0; padding: 0; margin: 0; clip-path: inset(50%); }
+.focus-control-note { display: block; margin-top: 4px; font-size: 11px; font-weight: 400; line-height: 1.5; }
 .core-mode-card .section-choices { grid-column: 1 / -1; margin-top: -2px; }
+.core-mode-card .section-choices.core-sections { flex-direction: column; align-items: stretch; gap: 12px; }
+.core-mode-card .section-choices.core-sections label { align-items: flex-start; }
+.core-mode-card .section-choices.core-sections input { flex: none; width: 14px; height: 14px; margin-top: 2px; padding: 0; }
+.core-mode-card .section-choices.core-sections .focus-control-note { margin-top: 2px; }
 .optional-site { padding: 0; }
 .optional-site summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; padding: 11px 14px; color: #3e4d44; cursor: pointer; list-style: none; }
 .optional-site summary:hover { background: #f7faf8; }

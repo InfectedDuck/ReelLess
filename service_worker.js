@@ -12,6 +12,8 @@ const {
   normalizeMeta,
   buildDynamicRules,
   permissionPatternForEntry,
+  customScriptPattern,
+  customScriptId,
   pauseUntil,
   reviewEligible
 } = ReelLess;
@@ -60,10 +62,10 @@ async function permittedCustomEntries(settings) {
   return results.filter(Boolean);
 }
 
-async function syncDynamicRules(settings) {
+async function syncDynamicRules(settings, permittedEntries) {
   const current = await chrome.declarativeNetRequest.getDynamicRules();
-  const permittedEntries = await permittedCustomEntries(settings);
-  const next = buildDynamicRules(settings, permittedEntries, new Date());
+  const permitted = Array.isArray(permittedEntries) ? permittedEntries : await permittedCustomEntries(settings);
+  const next = buildDynamicRules(settings, permitted, new Date());
   await chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: current.map((rule) => rule.id),
     addRules: next
@@ -98,9 +100,41 @@ async function syncAdvancedGuards(settings) {
   if (obsolete.length) await chrome.scripting.unregisterContentScripts({ ids: obsolete });
 }
 
+// Personal custom boundaries get the same in-page guard as optional platforms (focus screen,
+// entry-point hiding, click refusal) wherever their host permission was granted. The network
+// rules from syncDynamicRules remain as the backstop for direct navigations.
+async function syncCustomGuards(settings, permittedEntries) {
+  const registrations = await chrome.scripting.getRegisteredContentScripts();
+  const registeredIds = new Set(registrations.map((item) => item.id));
+  const desired = [];
+  for (const entry of permittedEntries || []) {
+    const matches = customScriptPattern(entry);
+    if (!matches) continue;
+    const id = customScriptId(entry);
+    desired.push(id);
+    if (!registeredIds.has(id)) {
+      await chrome.scripting.registerContentScripts([{
+        id,
+        matches: [matches],
+        js: ["shared.js", "site_guard.js"],
+        css: ["site_guard.css"],
+        runAt: "document_start",
+        persistAcrossSessions: true
+      }]);
+    }
+  }
+  const obsolete = Array.from(registeredIds).filter((id) => id.startsWith("reelless-custom-") && !desired.includes(id));
+  if (obsolete.length) await chrome.scripting.unregisterContentScripts({ ids: obsolete });
+}
+
 async function applySettingsNow() {
   const { settings } = await readState();
-  await Promise.all([syncDynamicRules(settings), syncAdvancedGuards(settings)]);
+  const permittedEntries = await permittedCustomEntries(settings);
+  await Promise.all([
+    syncDynamicRules(settings, permittedEntries),
+    syncAdvancedGuards(settings),
+    syncCustomGuards(settings, permittedEntries)
+  ]);
   return settings;
 }
 

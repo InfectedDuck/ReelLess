@@ -38,8 +38,9 @@
     document.documentElement.dataset.theme = resolvedAppearance();
   }
 
-  function modeOptions(selected) {
-    return R.PLATFORM_MODES.map((mode) => `<option value="${mode.value}" ${mode.value === selected ? "selected" : ""}>${mode.label}</option>`).join("");
+  function modeOptions(selected, platform) {
+    return R.PLATFORM_MODES.filter((mode) => mode.value !== "shortform" || platform.sections.some((section) => section.shortform))
+      .map((mode) => `<option value="${mode.value}" ${mode.value === selected ? "selected" : ""}>${mode.label}</option>`).join("");
   }
 
   function entryOptions(selected) {
@@ -54,8 +55,10 @@
   }
 
   function entryLabel(platform) {
+    if (!platform.core) return "Blocked page links";
     if (platform.id === "youtube") return "Shorts in feeds";
-    if (platform.id === "instagram" || platform.id === "facebook") return "Reels in feeds";
+    if (platform.id === "instagram") return "Reels in feeds";
+    if (platform.id === "facebook") return "Reels and videos in feeds";
     if (platform.id === "tiktok") return "Feed links";
     return "Short-form links";
   }
@@ -94,7 +97,7 @@
     card.className = "platform-card";
     const setting = settings.platforms[platform.id];
     const checked = setting.mode !== "off";
-    const coverage = platform.id === "youtube" ? "Shorts links, shelves, and tabs" : platform.id === "tiktok" ? "For You and video pages" : "Reels links and direct Reel visits";
+    const coverage = platform.id === "youtube" ? "Shorts links, shelves, and tabs" : platform.id === "tiktok" ? "For You and video pages" : platform.id === "facebook" ? "Reels and feed videos; allow videos via Selected sections" : "Reels links and direct Reel visits";
     card.innerHTML = `<header><span class="platform-mark">${platform.id === "youtube" ? "YT" : platform.id === "instagram" ? "IG" : platform.id === "facebook" ? "FB" : "TT"}</span><strong>${platform.label}</strong></header><p>${coverage}</p><label class="core-toggle"><input type="checkbox" data-core-toggle="${platform.id}" ${checked ? "checked" : ""}><span></span><b>${checked ? "Protected" : "Off"}</b></label><label class="entry-choice" data-entry-choice="${platform.id}" ${entryChoiceApplies(platform) ? "" : "hidden"}>${entryLabel(platform)}<select data-entry-points="${platform.id}" aria-label="${platform.label} entry points in feeds">${entryOptions(setting.entryPoints)}</select></label>`;
     return card;
   }
@@ -103,14 +106,15 @@
     const row = document.createElement(platform.core ? "article" : "details");
     row.className = `advanced-platform ${platform.core ? "core-mode-card" : "optional-site"}`;
     const setting = settings.platforms[platform.id];
-    const choices = platform.sections.map((section) => `<label><input type="checkbox" data-platform="${platform.id}" data-section="${section.id}" ${setting.sections[section.id] ? "checked" : ""}>${section.label}</label>`).join("");
+    const choices = platform.sections.map((section) => `<label><input type="checkbox" data-platform="${platform.id}" data-section="${section.id}" ${setting.sections[section.id] ? "checked" : ""}><span>${section.label}${section.description ? `<small class="focus-control-note">${section.description}</small>` : ""}</span></label>`).join("");
     const permissionState = platform.core ? "" : `<div class="permission-state" data-permission-state="${platform.id}"><span>Checking optional access...</span><button type="button" data-grant="${platform.id}" hidden>Grant access</button></div>`;
     const entryChoice = `<label class="entry-choice" data-entry-choice="${platform.id}" ${entryChoiceApplies(platform) ? "" : "hidden"}>${entryLabel(platform)}<select class="entry-select" data-entry-points="${platform.id}" aria-label="${platform.label} entry points in feeds">${entryOptions(setting.entryPoints)}</select></label>`;
-    const surfaces = (platform.surfaces || []).map((surface) => `<label><input type="checkbox" data-platform="${platform.id}" data-surface="${surface.id}" ${setting.surfaces[surface.id] ? "checked" : ""}>${surface.label}</label>`).join("");
+    const surfaces = (platform.surfaces || []).map((surface) => `<label><input type="checkbox" data-platform="${platform.id}" data-surface="${surface.id}" ${setting.surfaces[surface.id] ? "checked" : ""}><span>${surface.label}${surface.description ? `<small class="focus-control-note">${surface.description}</small>` : ""}</span></label>`).join("");
     const surfaceBlock = surfaces
       ? `<div class="surface-choices" data-surface-choices="${platform.id}"><span class="surface-title">Also quieten these parts of the page</span><div class="surface-grid">${surfaces}</div><p class="surface-note">Off by default. These stay reachable, they are just hidden. Turn one off again if a page stops behaving.</p></div>`
       : "";
-    const controls = `<div class="mode-controls"><select class="mode-select" data-platform="${platform.id}" aria-label="${platform.label} blocking mode">${modeOptions(setting.mode)}</select>${entryChoice}</div><div class="section-choices" data-section-choices="${platform.id}" ${setting.mode === "selected" ? "" : "hidden"}>${choices}</div>${surfaceBlock}${permissionState}`;
+    const focusControls = `<div class="section-choices focus-choices" data-section-choices="${platform.id}" ${setting.mode === "selected" ? "" : "hidden"}>${choices}${surfaces}</div>`;
+    const controls = `<div class="mode-controls"><select class="mode-select" data-platform="${platform.id}" aria-label="${platform.label} blocking mode">${modeOptions(setting.mode, platform)}</select>${entryChoice}</div>${!platform.core ? focusControls : `<div class="section-choices focus-choices core-sections" data-section-choices="${platform.id}" ${setting.mode === "selected" ? "" : "hidden"}>${choices}</div>${surfaceBlock}`}${permissionState}`;
     if (platform.core) {
       row.innerHTML = `<div><strong>${platform.label}</strong><p>Choose a narrower or wider protection mode.</p></div>${controls}`;
     } else {
@@ -490,9 +494,25 @@
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || !changes[R.SETTINGS_KEY]) return;
-    settings = R.normalizeSettings(changes[R.SETTINGS_KEY].newValue);
+    const next = R.normalizeSettings(changes[R.SETTINGS_KEY].newValue);
     if (unlockActive) resetUnlock();
+    // Saves made on this page echo back through storage. Re-rendering on the echo collapses
+    // every open row (fresh <details> start closed) and wipes whatever the user was doing,
+    // even though nothing changed — enabling an optional site like X then requires reopening
+    // rows between every click, and its section checkboxes can never be ticked in one flow.
+    // Only re-render for genuinely external updates, and keep the rows already open.
+    if (JSON.stringify(next) === JSON.stringify(settings)) return;
+    const advancedOpen = document.querySelector("details.advanced")?.open === true;
+    const openSites = new Set(Array.from(document.querySelectorAll("details.optional-site[open]"))
+      .map((node) => node.querySelector("select.mode-select[data-platform]")?.dataset.platform)
+      .filter(Boolean));
+    settings = next;
     renderAll();
+    if (advancedOpen) document.querySelector("details.advanced").open = true;
+    document.querySelectorAll("details.optional-site").forEach((row) => {
+      const id = row.querySelector("select.mode-select[data-platform]")?.dataset.platform;
+      if (id && openSites.has(id)) row.open = true;
+    });
   });
 
   // Firefox for Android offers no interface for granting or withdrawing optional host access, so
