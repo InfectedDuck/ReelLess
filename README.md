@@ -18,15 +18,19 @@ ReelLess removes YouTube Shorts, Instagram and Facebook Reels, and TikTok distra
 
 ## Product behavior
 
-- YouTube Shorts entry points are hidden; `/shorts/{id}` opens as `/watch?v={id}`.
+- X / Twitter offers **Block Home feed** (For You and Following), **Block Explore page**, **Block Notifications**, **Block Messages**, **Hide Explore recommendations** (search remains available), and **Hide sidebar distractions** (news, trends, and Who to follow). These optional controls are off by default. Profiles, posts, and bookmarks remain available unless you select Block all. X video posts are not blocked.
+- Reddit offers **Block Home feed**, **Block Popular, News, and Explore**, **Block Chat**, **Block Notifications**, and **Hide sidebar distractions** for Reddit Games and promotional discovery links. Communities, posts, comments, search, and saved posts remain available unless you select Block all.
+- The remaining Advanced sites use current web boundaries: Snapchat Spotlight with opt-in Stories; Twitch Home recommendations, Browse, Clips, and channel Videos (VODs); Pinterest Home, Explore, and Search; LinkedIn Feed, Videos, and Notifications; and Threads Home and Activity. Utility pages such as Jobs, search, profiles, messages, saved content, boards, and individual posts remain available. Instagram, Facebook, and Snapchat Stories are opt-in under Selected sections and stay allowed by default. Core sites also offer extra tabs: YouTube Home feed and Trending, Instagram Home feed, Facebook Home feed and Groups, and TikTok LIVE.
+- YouTube Shorts entry points are hidden; opening a Short or visiting `/shorts/{id}` directly shows the focus screen instead of playing anything.
 - Each site can instead keep Shorts, Reels, or feed links visible while still stopping them from opening. Choose **Hidden** or **Visible, can't be opened** on the core card or in Advanced.
-- Instagram and Facebook Reels entry points are hidden; direct Reel visits return to the normal feed.
+- Instagram Reels entry points are hidden; direct Reel visits return to the normal feed.
+- Facebook Reels, feed videos, Live videos, and fb.watch shares are hidden; opening a video stops in place with the focus screen instead of playing it. Direct Reel visits return to the feed. To allow videos again, use Advanced → Facebook → Selected sections and uncheck Watch.
 - Instagram Direct and Facebook Messenger conversations are never modified. A Reel shared in a conversation refuses to open, but nothing in the thread is hidden.
-- TikTok feed/video surfaces show a calm local focus screen. Selected utility sections can be allowed in Advanced settings.
+- TikTok feed/video surfaces show a calm local focus screen. LIVE, Messages, Upload, and Settings stay available by default; use Advanced → TikTok → Selected sections for narrower or wider control.
 - Only deliberate blocked navigation or clicks increase the local today/all-time count. Hidden cards do not.
 - Schedules, seven additional platforms, full-site blocking, section controls, and custom domains live under Advanced.
 
-The four core sites are bundled. Advanced sites and custom domains request exact optional access only from a user action. Custom destinations use block-only dynamic rules; core redirects are handled by site-specific navigation guards.
+The four core sites are bundled. Advanced sites and custom domains request exact optional access only from a user action. Custom boundaries use block-only dynamic rules for navigation plus the same in-page guard as the platforms: their pages stop in place with a focus screen, their links are hidden, and opening them is refused; core redirects are handled by site-specific navigation guards.
 
 ### Ultimate Lock
 

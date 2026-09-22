@@ -6,7 +6,7 @@ Block Shorts & Reels: YouTube, Instagram, TikTok, Facebook — ReelLess
 
 ## Summary
 
-Blocks YouTube Shorts, Instagram and Facebook Reels, and TikTok. Shorts links open in the normal player. Offline, no account.
+Blocks YouTube Shorts, Instagram and Facebook Reels, and TikTok. Blocked pages stop in place. Offline, no account.
 
 ## Detailed description
 
@@ -14,16 +14,16 @@ ReelLess helps students and knowledge workers avoid short-form feeds without giv
 
 Four calm defaults work immediately:
 
-- YouTube: hide Shorts navigation, shelves, cards, results, and channel tabs; open a direct Short as a regular video.
+- YouTube: hide Shorts navigation, shelves, cards, results, and channel tabs; stop direct Short visits with the focus screen instead of playing them.
 - Instagram: hide Reels entry points and return direct Reel visits to the feed.
-- Facebook: hide Reels entry points and return direct Reel visits to the feed.
-- TikTok: replace feed and video surfaces with a quiet focus screen.
+- Facebook: hide Reels and feed videos, stop opened videos with the focus screen, and return direct Reel visits to the feed. Videos can be allowed again under Advanced → Facebook → Selected sections.
+- TikTok: replace feed and video surfaces with a quiet focus screen. Messages, Upload, and Settings stay available by default.
 
 The popup shows protection status, local today/all-time blocked-attempt counts, four platform switches, and quick pauses for 5, 15, or 30 minutes or until tomorrow. Choose Dark, Light, or Use Chrome setting from Settings.
 
 Optional YouTube controls can also quieten the home feed, the Up next sidebar, comments, and end-screen suggestions. They are off until you turn them on, and none of them blocks a page.
 
-Advanced controls progressively reveal schedules, selected/full-site modes for seven additional platforms, TikTok utility-section exceptions, and custom blocked domains. Additional site access is requested only when the user enables that site.
+Advanced controls progressively reveal schedules, selected/full-site modes for seven additional platforms, per-tab checklists (e.g. Trending, Groups, Notifications, Messages, Chat, Search, Activity, LIVE, channel Videos), and custom blocked domains or paths. A custom boundary stops in place with its own focus screen. Additional site access is requested only when the user enables that site.
 
 For extra self-control, an optional Ultimate Lock can force protection on and remove ReelLess's own pause/settings controls. Its removal requires a clear choice, a typed phrase, a private unsaved reflection, three active check-ins, and at least one focused minute. Leaving or defocusing Settings resets the release. It does not claim to prevent Chrome or a device administrator from disabling, uninstalling, or clearing the extension.
 

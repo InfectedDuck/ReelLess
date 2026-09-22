@@ -2,6 +2,24 @@
 
 All notable changes to ReelLess are documented here.
 
+## Unreleased
+
+- Every site now has a fuller tab checklist, and each entry explains which tab it removes: YouTube Home feed and Trending; Instagram Home feed; Facebook Home feed and Groups; TikTok LIVE; X Notifications and Messages; Reddit Chat and Notifications; Twitch channel Videos (VODs); Pinterest Search; LinkedIn Videos and Notifications; and Threads Activity. All of them are opt-in and stay allowed by default, and every checklist entry carries a description naming its tab. An older Twitch Videos choice carries onto channel video archives.
+- Personal custom boundaries now block like platforms do: a granted entry stops in place with its own focus screen, hides its links on every guarded page, and refuses clicks, in addition to the existing navigation blocking. A bare domain (no path) blocks the whole site, which validation previously rejected.
+- Scrolling stays smooth with video protection on. The every-second full document sweep is now an incremental pass (new content only) with a slower full safety net, title/aria-label churn off YouTube no longer schedules scans, thumbnail-only posts are hidden by the stylesheet instead of a document-wide attribute sweep, and the theater-dialog check runs once per pass. The video-post stylesheet rules share one innermost-post pattern per content kind instead of one rule per tag.
+- Facebook feed videos are now part of the default protection. Facebook autoplays recommended clips in place and opens them in a dialog without changing the address, so Reels-only blocking left the main video loop open. Feed video posts are removed, opened videos stop in place with a "This video is outside your focus plan" screen, and direct Watch/video/page-Videos visits are blocked. Allow videos again via Advanced → Facebook → Selected sections → uncheck Watch. Messenger conversations stay untouched, and Reels kept while Watch is blocked stay playable.
+- Clicking a blocked Instagram or Facebook Reel now cancels the click in place, preserving the feed and scroll position. Home/profile redirects apply to direct blocked-page visits.
+- Removed the YouTube Shorts-to-watch conversion: YouTube plays Shorts videos on `/watch` pages too, so converting a Short left it fully watchable and dismissed the focus screen. Opening a Short or visiting `/shorts/{id}` directly now stops in place with the focus screen, which links to allowed pages. A late render dropping that screen is restored on the next pass without counting a second visit.
+
+- Instagram Home now replaces hidden Reel cards with short "Reel hidden" placeholders, avoiding feed-loader churn without full-height black gaps. Recycled photo posts restore normally. Navigation entries and profile tiles still collapse normally.
+
+- Audited the remaining Advanced sites against their current web products. Snapchat now targets Spotlight only; Twitch targets Home recommendations, Browse, and Clips (including `clips.twitch.tv`); Pinterest targets Home and Explore; LinkedIn targets Feed; and Threads targets Home on both `threads.com` and the older `threads.net` host.
+- Removed stale or counterproductive choices for Snapchat Stories, Twitch channel Videos, Pinterest Watch and individual Pins, LinkedIn Video and Jobs, and Threads Search and Media. Settings schema 10 safely normalizes those older selections and locked snapshots.
+- Replaced Reddit's Short video communities option with Home blocking, broad-discovery blocking, and optional sidebar cleanup. Communities, discussions, and search remain available.
+- Settings schema 9 migrates existing Popular or All selections to the combined discovery control, including Ultimate Lock snapshots. Retired Reddit short-form mode becomes Off.
+- Replaced X's Video option with Home feed blocking, Explore recommendation hiding, and sidebar distraction hiding. Search and useful pages remain accessible. Home blocking screens offer allowed-page shortcuts.
+- Settings schema 8 preserves Home choices and migrates selected Explore blocks to recommendation hiding, including Ultimate Lock snapshots. Retired X short-form mode becomes Off; no new restrictions are enabled automatically.
+
 ## 2.3.0 - 2026-09-08
 
 - Facebook videos in the feed can now actually be stopped. Facebook plays them in place and opens them in a dialog without ever changing the address, so there was no navigation to refuse and no link click to catch: selecting the Watch section blocked the Watch tab and a page's Videos tab, and the feed carried on playing regardless. With Watch selected, the posts carrying those videos are now removed from the feed, which is the only point where the decision can still be made. Ordinary posts stay. This needs entry points set to Hidden, since "Visible, can't be opened" is precisely what cannot be delivered when nothing announces the open.
