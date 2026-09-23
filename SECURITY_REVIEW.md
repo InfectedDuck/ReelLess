@@ -1,10 +1,10 @@
-# ReelLess v2.3.0 Security Review
+# ReelLess v2.3.1 Security Review
 
 Review date: September 8, 2026
 
 ## Result
 
-No known high-severity or release-blocking security issue remains after the checks below. This is a focused source and packaging review of the 2.3.0 code, not a formal third-party penetration test.
+No known high-severity or release-blocking security issue remains after the checks below. This is a focused source and packaging review of the 2.3.1 code, not a formal third-party penetration test.
 
 ## Checks completed
 
@@ -32,7 +32,7 @@ No known high-severity or release-blocking security issue remains after the chec
 - The seven Advanced sites request their configured HTTPS origins with `chrome.permissions.request` only from a user action in Settings. The service worker registers a `reelless-advanced-<site>` guard only while the site is enabled and its origins are granted, unregisters guards that no longer qualify, and Settings removes the origins when a site is turned off.
 - Arbitrary custom domains use the required `https://*/*` optional declaration, but ReelLess requests and retains only `https://<host>/*` for the host the user typed. `validateEntry` rejects whitespace, wildcards, queries, and fragments, and the list is capped at 50 entries.
 - Custom-domain rules are block-only `declarativeNetRequest` dynamic rules for `main_frame` and `sub_frame` requests, anchored to `^https://` with the host and path regex-escaped, and are built only for entries whose origin is currently granted. Every dynamic rule is cleared and re-created on each sync, so stale rules from older builds cannot persist.
-- Local storage holds three keys: `settingsV2` (schema v7), `statsV1` as `{localDay, todayCount, totalCount}`, and `metaV1` as `{installedAt, activeDayCount, lastActiveDay, reviewDismissed, reviewShown}`. The legacy `settings` key is read only to migrate it.
+- Local storage holds three keys: `settingsV2` (schema v11), `statsV1` as `{localDay, todayCount, totalCount}`, and `metaV1` as `{installedAt, activeDayCount, lastActiveDay, reviewDismissed, reviewShown}`. The legacy `settings` key is read only to migrate it.
 
 ### Firefox build
 

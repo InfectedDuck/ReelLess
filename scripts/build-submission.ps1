@@ -2,8 +2,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
+$manifest = Get-Content -LiteralPath (Join-Path $root "manifest.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+$version = $manifest.version
 $releaseRoot = Join-Path $root "release"
-$bundle = Join-Path $releaseRoot "ReelLess-v2.3.0"
+$bundle = Join-Path $releaseRoot "ReelLess-v$version"
 $assets = Join-Path $bundle "listing-assets"
 $documents = Join-Path $bundle "documents"
 
@@ -17,7 +19,7 @@ if ($LASTEXITCODE -ne 0) { throw "Extension package build failed" }
 New-Item -ItemType Directory -Path $assets -Force | Out-Null
 New-Item -ItemType Directory -Path $documents -Force | Out-Null
 
-Copy-Item -LiteralPath (Join-Path $root "dist/reels-blocker.zip") -Destination (Join-Path $bundle "UPLOAD-THIS-reels-blocker-v2.3.0.zip")
+Copy-Item -LiteralPath (Join-Path $root "dist/reels-blocker.zip") -Destination (Join-Path $bundle "UPLOAD-THIS-reels-blocker-v$version.zip")
 Copy-Item -LiteralPath (Join-Path $root "SUBMISSION_README.md") -Destination (Join-Path $bundle "README-FIRST.md")
 
 $assetFiles = @(
@@ -45,5 +47,5 @@ foreach ($file in $documentFiles) {
   Copy-Item -LiteralPath (Join-Path $root $file) -Destination (Join-Path $documents $file)
 }
 
-Write-Host "Created Chrome Web Store submission kit: $bundle"
-Write-Host "Upload only: $(Join-Path $bundle 'UPLOAD-THIS-reels-blocker-v2.3.0.zip')"
+Write-Host "Created submission kit: $bundle"
+Write-Host "Upload only: $(Join-Path $bundle "UPLOAD-THIS-reels-blocker-v$version.zip")"

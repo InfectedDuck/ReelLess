@@ -72,13 +72,16 @@ vm.runInContext(workerSource, sandbox);
 await new Promise((resolve) => setTimeout(resolve, 20));
 
 assert.equal(listeners.message.length, 1);
-assert.equal(store.settingsV2.schemaVersion, 10, "v1 settings should migrate to the current schema");
+assert.equal(store.settingsV2.schemaVersion, 11, "v1 settings should migrate to the current schema");
 assert.equal(store.settingsV2.platforms.reddit.mode, "selected");
 assert.equal(dynamicRules.length, 0, "denied custom permission must fail safely");
 assert.equal(registered.length, 0, "denied advanced permission must not register a guard");
 
-function message(payload) {
-  return new Promise((resolve) => listeners.message[0](payload, { id: chrome.runtime.id }, resolve));
+function message(payload, sender) {
+  return new Promise((resolve) => listeners.message[0](payload, sender || { id: chrome.runtime.id, url: "chrome-extension://test-extension-id/options.html" }, resolve));
+}
+function contentMessage(payload) {
+  return message(payload, { id: chrome.runtime.id, url: "https://example.com/reels/123" });
 }
 
 granted.add("https://example.com/*");
@@ -103,7 +106,7 @@ assert.deepEqual(
   "Every enabled optional platform with granted access should receive exactly one dynamic guard"
 );
 const customGuard = registered.find((item) => item.id === customGuardId);
-assert.deepEqual([...customGuard.matches], ["https://example.com/reels*"], "a custom boundary guard covers exactly its entry");
+assert.deepEqual([...customGuard.matches], ["https://example.com/*"], "a custom boundary guard covers its host so allowed pages detect SPA navigation");
 assert.deepEqual([...customGuard.js], ["shared.js", "site_guard.js"]);
 assert.deepEqual([...customGuard.css], ["site_guard.css"]);
 for (const platform of optionalPlatforms) {
@@ -170,5 +173,36 @@ response = await message({ type: "pause", duration: 15 });
 assert.equal(response.ok, true);
 assert.equal(response.locked, true, "Ultimate Lock must reject pause requests");
 assert.equal(response.settings.pausedUntil, null);
+
+// Serialized writer: stale snapshots never clobber; Off restores the remembered mode.
+store.settingsV2 = sandbox.ReelLess.releaseUltimateSettings(store.settingsV2);
+store.settingsV2 = sandbox.ReelLess.normalizeSettings(store.settingsV2);
+response = await message({ type: "setPlatformEnabled", platform: "youtube", enabled: false });
+assert.equal(response.ok, true);
+assert.equal(response.settings.platforms.youtube.mode, "off");
+assert.equal(response.settings.platforms.youtube.lastEnabledMode, store.settingsV2.platforms.youtube.mode === "off" ? response.settings.platforms.youtube.lastEnabledMode : response.settings.platforms.youtube.lastEnabledMode);
+const remembered = response.settings.platforms.youtube.lastEnabledMode;
+response = await message({ type: "setPlatformEnabled", platform: "youtube", enabled: true });
+assert.equal(response.settings.platforms.youtube.mode, remembered, "re-enabling restores the remembered mode");
+response = await message({ type: "patchSettings", patch: { platforms: { instagram: { sections: { home: true } } } } });
+assert.equal(response.ok, true);
+assert.equal(response.saved, true);
+assert.equal(typeof response.applied, "boolean", "responses distinguish saved preference from applied protection");
+assert.equal(response.settings.platforms.instagram.sections.home, true, "only the requested field is applied");
+const denied = await contentMessage({ type: "patchSettings", patch: { protectionEnabled: false } });
+assert.equal(denied.ok, false, "content scripts must not change settings");
+const deniedLock = await contentMessage({ type: "enableUltimate", profile: "keep_current" });
+assert.equal(deniedLock.ok, false, "content scripts must not change the lock");
+// Content scripts retain openOptions, state, pause, and counting.
+const opened = await contentMessage({ type: "openOptions" });
+assert.equal(opened.ok, true, "content scripts may request the settings page");
+response = await message({ type: "getState" });
+assert.equal(response.ok, true);
+assert.equal(typeof response.status, "string", "getState carries diagnostics status");
+assert.ok(Array.isArray(response.platforms), "getState carries per-site diagnostics");
+response = await message({ type: "resetStats" });
+assert.equal(response.ok, true);
+assert.equal(response.stats.todayCount, 0);
+assert.equal(response.stats.totalCount, 0, "reset clears counters without touching settings");
 
 console.log("Service worker migration, optional permission, dynamic guard, counter, and Ultimate Lock tests passed.");

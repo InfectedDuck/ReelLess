@@ -122,9 +122,16 @@
     chrome.runtime.sendMessage({ type: "recordBlockAttempt", eventId: eventId(kind) }).catch(() => {});
   }
 
+  let previousFocus = null;
+
   function removeFocusScreen() {
     const screen = document.getElementById("reelless-focus-screen");
     if (screen) screen.remove();
+    document.removeEventListener("keydown", trapFocusTab, true);
+    if (previousFocus && previousFocus.isConnected && typeof previousFocus.focus === "function") {
+      try { previousFocus.focus({ preventScroll: true }); } catch (_error) {}
+    }
+    previousFocus = null;
   }
 
   // A screen pinned by a blocked click belongs to that moment only; it goes away with the page state.
@@ -132,6 +139,56 @@
     if (!screenPinned) return;
     screenPinned = false;
     removeFocusScreen();
+  }
+
+  function focusableIn(screen) {
+    return Array.from(screen.querySelectorAll('a[href], button:not([disabled])'))
+      .filter((node) => node.offsetParent !== null || node === document.activeElement);
+  }
+
+  function trapFocusTab(event) {
+    if (event.key !== "Tab") return;
+    const screen = document.getElementById("reelless-focus-screen");
+    if (!screen) return;
+    const items = screen.querySelectorAll('a[href], button:not([disabled])');
+    if (!items.length) {
+      event.preventDefault();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  // Genuinely blocked full pages must not keep playing behind the focus screen:
+  // pause existing media, mute autoplay, and keep them stopped while blocked.
+  // Allowed pages (including a refused click's pinned screen) are untouched so
+  // unrelated media keeps playing.
+  function suppressBlockedPageMedia() {
+    const media = document.querySelectorAll("video, audio");
+    for (let index = 0; index < media.length; index += 1) {
+      const node = media[index];
+      if (node.closest && node.closest("#reelless-focus-screen")) continue;
+      try {
+        if (typeof node.pause === "function" && !node.paused) node.pause();
+        node.removeAttribute("autoplay");
+        if ("preload" in node) node.preload = "none";
+        if ("muted" in node && !node.muted) node.muted = true;
+      } catch (_error) {}
+    }
+  }
+
+  function isFullPageBlock() {
+    const screen = document.getElementById("reelless-focus-screen");
+    // Pinned screens sit on an allowed page (blocked click refused in place);
+    // only unpinned navigation screens mean the page itself is blocked.
+    return Boolean(screen) && !screenPinned;
   }
 
   // Tells the stylesheet which of the two modes is in force. Absent means hide, so protection is
@@ -366,7 +423,7 @@
     instagram: [["Home", "/"], ["Messages", "/direct/inbox/"], ["Explore", "/explore/"]],
     facebook: [["Home", "/"], ["Messages", "/messages/"], ["Groups", "/groups/"], ["Marketplace", "/marketplace/"]],
     tiktok: [["Home", "/"], ["Messages", "/messages"], ["Upload", "/upload"], ["Settings", "/setting"]],
-    x: [["Home", "/home"], ["Explore", "/explore"], ["Notifications", "/notifications"], ["Chat", "/messages"], ["Bookmarks", "/i/bookmarks"]],
+    x: [["Home", "/home"], ["Explore", "/explore"], ["Notifications", "/notifications"], ["Chat", "/i/chat"], ["Bookmarks", "/i/bookmarks"]],
     reddit: [["Home", "/"], ["Search", "/search/"], ["Notifications", "/notifications"], ["Chat", "/chat"], ["Saved", "/user/me/saved/"]],
     snapchat: [["Home", "/"], ["Stories", "/stories"], ["Chat", "/web"]],
     twitch: [["Home", "/"], ["Following", "/directory/following"], ["Browse", "/directory"]],
@@ -436,8 +493,24 @@
           requestFullScan();
         });
       }
-      screen.querySelector('[data-action="settings"]').addEventListener("click", () => {
-        chrome.runtime.openOptionsPage();
+      const settingsButton = screen.querySelector('[data-action="settings"]');
+      const settingsError = document.createElement("p");
+      settingsError.className = "reelless-error";
+      settingsError.setAttribute("role", "alert");
+      settingsError.hidden = true;
+      settingsButton.after(settingsError);
+      settingsButton.addEventListener("click", async () => {
+        settingsError.hidden = true;
+        try {
+          const response = await chrome.runtime.sendMessage({ type: "openOptions" });
+          if (!response || response.ok === false) {
+            settingsError.textContent = (response && response.error) || "Settings could not be opened. Open ReelLess settings from the browser toolbar.";
+            settingsError.hidden = false;
+          }
+        } catch (_error) {
+          settingsError.textContent = "Settings could not be opened. Open ReelLess settings from the browser toolbar.";
+          settingsError.hidden = false;
+        }
       });
       const dismissButton = screen.querySelector('[data-action="dismiss"]');
       if (pinned) {
@@ -451,6 +524,19 @@
         dismissButton.remove();
       }
       document.documentElement.appendChild(screen);
+      // Keyboard access: move focus into the dialog, contain Tab, restore on dismiss.
+      // Escape closes only the pinned Stay-here case; it never bypasses a blocked page.
+      try {
+        previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      } catch (_error) {
+        previousFocus = null;
+      }
+      document.addEventListener("keydown", trapFocusTab, true);
+      const firstFocusable = screen.querySelector('a[href], button:not([disabled])');
+      if (firstFocusable && typeof firstFocusable.focus === "function") {
+        try { firstFocusable.focus(); } catch (_error) {}
+      }
+      if (!pinned) suppressBlockedPageMedia();
     };
     if (document.documentElement) mount();
     else document.addEventListener("DOMContentLoaded", mount, { once: true });
@@ -1196,6 +1282,7 @@
       pendingRoots.clear();
       pendingParents.clear();
       fullScanDue = true;
+      if (isFullPageBlock()) suppressBlockedPageMedia();
       return;
     }
     // A theater dialog plays without changing the address, so the navigation guard above never
@@ -1305,11 +1392,43 @@
     }
   }, true);
 
+  // While a full-page block screen is up, any media that starts (newly inserted
+  // players, autoplay, resumed playback) is stopped again. Pinned click screens
+  // sit on allowed pages and never trigger this; allowed watch pages and
+  // conversations keep playing.
+  document.addEventListener("play", (event) => {
+    if (!isFullPageBlock()) return;
+    const node = event.target;
+    if (!node || (node.closest && node.closest("#reelless-focus-screen"))) return;
+    try {
+      if (typeof node.pause === "function" && !node.paused) node.pause();
+      if ("muted" in node && !node.muted) node.muted = true;
+    } catch (_error) {}
+  }, true);
+  document.addEventListener("playing", (event) => {
+    if (!isFullPageBlock()) return;
+    const node = event.target;
+    if (!node || (node.closest && node.closest("#reelless-focus-screen"))) return;
+    try {
+      if (typeof node.pause === "function" && !node.paused) node.pause();
+    } catch (_error) {}
+  }, true);
+
   // Enter activates whatever has focus. Space, the arrows and the Page keys scroll, so they are
   // reading rather than opening and must never arm this.
   document.addEventListener("pointerdown", () => { lastGestureAt = Date.now(); }, true);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Enter") lastGestureAt = Date.now();
+    if (event.key === "Escape") {
+      // Escape may dismiss only the pinned Stay-here case on an allowed page;
+      // it must never bypass a blocked page.
+      if (screenPinned && document.getElementById("reelless-focus-screen")) {
+        event.preventDefault();
+        screenPinned = false;
+        removeFocusScreen();
+        requestFullScan();
+      }
+    }
   }, true);
   globalThis.addEventListener("scroll", () => { lastScrollAt = Date.now(); }, true);
 

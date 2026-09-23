@@ -7,7 +7,14 @@ async function applyAppearance() {
 }
 
 applyAppearance().catch(() => {});
-document.getElementById("settingsButton").addEventListener("click", () => chrome.runtime.openOptionsPage());
+document.getElementById("settingsButton").addEventListener("click", async () => {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "openOptions" });
+    if (!response || response.ok === false) chrome.runtime.openOptionsPage();
+  } catch (_error) {
+    try { chrome.runtime.openOptionsPage(); } catch (_ignored) {}
+  }
+});
 document.getElementById("pinHelp").addEventListener("click", () => {
   const target = document.getElementById("pinInstructions");
   target.scrollIntoView({ behavior: "smooth", block: "center" });

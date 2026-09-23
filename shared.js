@@ -13,10 +13,18 @@
   const LEGACY_SETTINGS_KEY = "settings";
   const STATS_KEY = "statsV1";
   const META_KEY = "metaV1";
-  const SCHEMA_VERSION = 10;
+  const SCHEMA_VERSION = 11;
   const CUSTOM_RULE_START = 10000;
   const MAX_CUSTOM_ENTRIES = 50;
   const CORE_PLATFORM_IDS = ["youtube", "instagram", "facebook", "tiktok"];
+  // Store listing identities. Until a real listing URL is known the review action
+  // stays hidden and only support is offered; never derive a review URL from a
+  // runtime id (that is not a listing id, and Firefox ids must never build Chrome URLs).
+  const DISTRIBUTION = {
+    chrome: { listingId: null, reviewUrl: null, storeUrl: null },
+    edge: { listingId: null, reviewUrl: null, storeUrl: null },
+    firefox: { listingId: null, reviewUrl: null, storeUrl: null }
+  };
   const ULTIMATE_PROFILES = [
     { value: "block_shortform", label: "Block all core short-form content" },
     { value: "keep_current", label: "Keep my current platform choices" }
@@ -54,14 +62,17 @@
       permissionPatterns: ["https://youtube.com/*", "https://www.youtube.com/*", "https://m.youtube.com/*"],
       sections: [
         { id: "shorts", label: "Shorts", description: "Blocks Shorts shelves, cards, tabs, and direct Short visits (/shorts). Ordinary videos stay available.", shortform: true, paths: ["/shorts", "/feed/shorts"], patterns: [/^\/@[^/]+\/shorts(?:\/|$)/] },
-        { id: "home", label: "Home feed", description: "Blocks the home page feed (/). Watch pages, subscriptions, and search stay available.", shortform: false, paths: ["/"] },
-        { id: "trending", label: "Trending", description: "Blocks the Trending page (/feed/trending). Subscriptions and search stay available.", shortform: false, paths: ["/feed/trending", "/trending"] }
+        { id: "home", label: "Home feed", description: "Blocks the home page feed (/) entirely with a focus screen. Watch pages, subscriptions, and search stay available.", shortform: false, fullPage: true, paths: ["/"] },
+        { id: "trending", label: "Trending", description: "Blocks the Trending page (/feed/trending) entirely with a focus screen. Subscriptions and search stay available.", shortform: false, fullPage: true, paths: ["/feed/trending", "/trending"] },
+        { id: "subscriptions", label: "Subscriptions", description: "Blocks the Subscriptions feed (/feed/subscriptions) entirely with a focus screen. Watch pages and search stay available.", shortform: false, fullPage: true, paths: ["/feed/subscriptions"] },
+        { id: "gaming", label: "Gaming", description: "Blocks the Gaming hub (/gaming) entirely with a focus screen. Ordinary videos and search stay available.", shortform: false, fullPage: true, paths: ["/gaming"] }
       ],
       surfaces: [
         { id: "homeFeed", label: "Home feed recommendations" },
         { id: "sidebar", label: "Up next sidebar" },
         { id: "comments", label: "Comments" },
-        { id: "endScreen", label: "End screen suggestions" }
+        { id: "endScreen", label: "End screen suggestions" },
+        { id: "games", label: "Games shelf", description: "Hides the Playables games shelf and game cards. Videos stay available." }
       ]
     },
     {
@@ -71,9 +82,9 @@
       permissionPatterns: ["https://instagram.com/*", "https://www.instagram.com/*", "https://m.instagram.com/*"],
       sections: [
         { id: "reels", label: "Reels", description: "Blocks Reels pages and Reels links in feeds (/reel, /reels). Ordinary posts stay available.", shortform: true, paths: ["/reel", "/reels"], patterns: [/^\/[^/]+\/reels?(?:\/|$)/] },
-        { id: "home", label: "Home feed", description: "Blocks the main home feed (/). Profiles, posts, Explore, and messages stay available unless blocked separately.", shortform: false, paths: ["/"] },
-        { id: "explore", label: "Explore", description: "Blocks the Explore discovery page (/explore). Search and profiles stay available.", shortform: false, paths: ["/explore"] },
-        { id: "stories", label: "Stories", description: "Blocks ephemeral Stories (/stories/). Home feed, Reels, Explore, and messages stay available unless blocked separately.", shortform: false, paths: ["/stories", "/story"] }
+        { id: "home", label: "Home feed", description: "Blocks the main home feed (/) entirely with a focus screen. Profiles, posts, Explore, and messages stay available unless blocked separately.", shortform: false, fullPage: true, paths: ["/"] },
+        { id: "explore", label: "Explore", description: "Blocks the Explore discovery page (/explore) entirely with a focus screen. Search and profiles stay available.", shortform: false, fullPage: true, paths: ["/explore"] },
+        { id: "stories", label: "Stories", description: "Blocks ephemeral Stories (/stories/) entirely with a focus screen. Home feed, Reels, Explore, and messages stay available unless blocked separately.", shortform: false, fullPage: true, paths: ["/stories", "/story"] }
       ]
     },
     {
@@ -99,10 +110,11 @@
         { id: "watch", label: "Watch", description: "Blocks the Watch page, video and Live pages, and video posts in feeds. Ordinary posts stay available.", shortform: true, paths: ["/watch", "/videos", "/video.php", "/share/v", "/live"],
           patterns: [/^\/[^/]+\/videos(?:\/|$)/, /^\/[^/]+\/live(?:\/|$)/],
           hostPatterns: [{ hosts: ["fb.watch", "www.fb.watch"], pattern: /^\// }] },
-        { id: "home", label: "Home feed", description: "Blocks the home feed (/). Groups, Watch, Marketplace, and messages stay available unless blocked separately.", shortform: false, paths: ["/"] },
-        { id: "groups", label: "Groups", description: "Blocks Groups pages and the groups tab (/groups). Home feed and messages stay available unless blocked separately.", shortform: false, paths: ["/groups"] },
-        { id: "stories", label: "Stories", description: "Blocks ephemeral Stories (/stories/). Home feed, Reels, Watch, Groups, and messages stay available unless blocked separately.", shortform: false, paths: ["/stories", "/story", "/story.php"] },
-        { id: "marketplace", label: "Marketplace", description: "Blocks Marketplace pages (/marketplace). Home feed, Watch, Groups, and messages stay available unless blocked separately.", shortform: false, paths: ["/marketplace"] }
+        { id: "home", label: "Home feed", description: "Blocks the home feed (/) entirely with a focus screen. Groups, Watch, Marketplace, and messages stay available unless blocked separately.", shortform: false, fullPage: true, paths: ["/"] },
+        { id: "groups", label: "Groups", description: "Blocks Groups pages and the groups tab (/groups) entirely with a focus screen. Home feed and messages stay available unless blocked separately.", shortform: false, fullPage: true, paths: ["/groups"] },
+        { id: "stories", label: "Stories", description: "Blocks ephemeral Stories (/stories/) entirely with a focus screen. Home feed, Reels, Watch, Groups, and messages stay available unless blocked separately.", shortform: false, fullPage: true, paths: ["/stories", "/story", "/story.php"] },
+        { id: "marketplace", label: "Marketplace", description: "Blocks Marketplace pages (/marketplace) entirely with a focus screen. Home feed, Watch, Groups, and messages stay available unless blocked separately.", shortform: false, fullPage: true, paths: ["/marketplace"] },
+        { id: "events", label: "Events", description: "Blocks Events pages (/events) entirely with a focus screen. Home feed, Groups, and messages stay available unless blocked separately.", shortform: false, fullPage: true, paths: ["/events"] }
       ]
     },
     {
@@ -113,7 +125,7 @@
       sections: [
         { id: "feed", label: "For You / Following", description: "Blocks the main feed and front page (/). Utility sections stay available unless blocked separately.", shortform: true, paths: ["/", "/foryou", "/following", "/explore"] },
         { id: "videos", label: "Videos", description: "Blocks video and profile video pages (/video, /@handle). Utility sections stay available unless blocked separately.", shortform: true, paths: ["/video"], patterns: [/^\/@[^/]+(?:\/|$)/] },
-        { id: "live", label: "LIVE", description: "Blocks TikTok LIVE streams and the LIVE page (/live). Recorded videos stay available unless blocked separately.", shortform: false, paths: ["/live"] },
+        { id: "live", label: "LIVE", description: "Blocks TikTok LIVE streams and the LIVE page (/live) entirely with a focus screen. Recorded videos stay available unless blocked separately.", shortform: false, fullPage: true, paths: ["/live"] },
         { id: "messages", label: "Messages", description: "Blocks direct messages (/messages).", shortform: false, paths: ["/messages"] },
         { id: "upload", label: "Upload", description: "Blocks the upload page (/upload).", shortform: false, paths: ["/upload"] },
         { id: "settings", label: "Settings", description: "Blocks the settings pages (/settings).", shortform: false, paths: ["/setting", "/settings"] }
@@ -130,7 +142,9 @@
         { id: "home", label: "Block Home feed", description: "Blocks both For You and Following. Other pages stay available.", shortform: false, paths: ["/", "/home"] },
         { id: "explore", label: "Block Explore page", description: "Blocks the Explore discovery page (/explore and its tabs). Search (/search) stays available.", shortform: false, paths: ["/explore"] },
         { id: "notifications", label: "Block Notifications", description: "Blocks the Notifications page (/notifications). Timeline posts stay available.", shortform: false, paths: ["/notifications"] },
-        { id: "messages", label: "Block Messages", description: "Blocks direct messages (/messages). Timeline posts stay available.", shortform: false, paths: ["/messages"] }
+        { id: "messages", label: "Block Messages", description: "Blocks direct messages (/i/chat). Timeline posts stay available.", shortform: false, paths: ["/messages", "/i/chat"] },
+        { id: "communities", label: "Block Communities", description: "Blocks Communities discovery and community pages (/i/communities). Timeline posts stay available.", shortform: false, paths: ["/i/communities"] },
+        { id: "grok", label: "Block Grok", description: "Blocks the Grok AI assistant (/i/grok). Timeline posts stay available.", shortform: false, paths: ["/i/grok"] }
       ],
       surfaces: [
         { id: "xExplore", label: "Hide Explore recommendations", description: "Hides the discovery feed and topic tabs. Search stays available." },
@@ -147,6 +161,7 @@
         { id: "discovery", label: "Block Popular, News, and Explore", description: "Blocks broad Reddit-wide discovery feeds, including the legacy All feed.", shortform: false,
           paths: ["/r/popular", "/r/all", "/news", "/explore"], queries: [{ key: "feed", values: ["popular", "all", "news", "explore"] }] },
         { id: "chat", label: "Block Chat", description: "Blocks Reddit chat (/chat). Communities, posts, comments, and search stay available.", shortform: false, paths: ["/chat"] },
+        { id: "inbox", label: "Block Message inbox", description: "Blocks the private-message inbox (/message). Chat, communities, posts, and search stay available unless blocked separately.", shortform: false, paths: ["/message"] },
         { id: "notifications", label: "Block Notifications", description: "Blocks the notifications page (/notifications). Communities, posts, and search stay available.", shortform: false, paths: ["/notifications"] }
       ],
       surfaces: [
@@ -174,7 +189,9 @@
         { id: "clips", label: "Block Clips", description: "Blocks short clips while preserving live channels and full channel archives.", shortform: true,
           paths: ["/clip", "/clips"], hosts: ["twitch.tv", "www.twitch.tv", "m.twitch.tv"], hostPatterns: [{ hosts: ["clips.twitch.tv"], pattern: /^\// }] },
         { id: "videos", label: "Block Videos (VODs)", description: "Blocks channel video archives and past broadcasts (/channel/videos). Live channels and Browse stay available unless blocked separately.", shortform: false,
-          paths: ["/videos"], patterns: [/^\/[^/]+\/videos(?:\/|$)/], hosts: ["twitch.tv", "www.twitch.tv", "m.twitch.tv"] }
+          paths: ["/videos"], patterns: [/^\/[^/]+\/videos(?:\/|$)/], hosts: ["twitch.tv", "www.twitch.tv", "m.twitch.tv"] },
+        { id: "drops", label: "Block Drops", description: "Blocks the Drops and rewards inventory (/drops) where watch-time campaigns live. Live channels and Browse stay available unless blocked separately.", shortform: false,
+          paths: ["/drops"], hosts: ["twitch.tv", "www.twitch.tv", "m.twitch.tv"] }
       ]
     },
     {
@@ -194,7 +211,9 @@
       sections: [
         { id: "feed", label: "Block Feed", description: "Blocks the scrolling news feed. Jobs, messages, notifications, profiles, and search stay available.", shortform: false, paths: ["/feed"] },
         { id: "videos", label: "Block Videos", description: "Blocks native video post pages (/video). Jobs, messages, and profiles stay available.", shortform: false, paths: ["/video"] },
-        { id: "notifications", label: "Block Notifications", description: "Blocks the notifications page (/notifications). Jobs, messages, and profiles stay available.", shortform: false, paths: ["/notifications"] }
+        { id: "notifications", label: "Block Notifications", description: "Blocks the notifications page (/notifications). Jobs, messages, and profiles stay available.", shortform: false, paths: ["/notifications"] },
+        { id: "messaging", label: "Block Messaging", description: "Blocks direct messages (/messaging). Feed, jobs, and profiles stay available unless blocked separately.", shortform: false, paths: ["/messaging"] },
+        { id: "network", label: "Block My Network", description: "Blocks the My Network invitations page (/mynetwork). Feed, jobs, and messages stay available unless blocked separately.", shortform: false, paths: ["/mynetwork"] }
       ]
     },
     {
@@ -232,9 +251,15 @@
     }, {});
   }
 
+  function defaultLastEnabledMode(platform) {
+    // The mode to restore when a site is switched back on. Off has no enabled
+    // mode, so fall back to the site's default; "all" is remembered as-is.
+    return platform.defaultMode;
+  }
+
   function defaultPlatformSettings() {
     return PLATFORMS.reduce((result, platform) => {
-      result[platform.id] = { mode: platform.defaultMode, entryPoints: DEFAULT_ENTRY_POINTS, sections: sectionDefaults(platform), surfaces: surfaceDefaults(platform) };
+      result[platform.id] = { mode: platform.defaultMode, lastEnabledMode: defaultLastEnabledMode(platform), entryPoints: DEFAULT_ENTRY_POINTS, sections: sectionDefaults(platform), surfaces: surfaceDefaults(platform) };
       return result;
     }, {});
   }
@@ -271,8 +296,15 @@
     return Number.isFinite(stamp) ? new Date(stamp).toISOString() : null;
   }
 
+  function normalizeLastEnabledMode(platform, value, mode) {
+    const candidate = typeof value === "string" ? value : (value && typeof value === "object" ? value.lastEnabledMode : null);
+    if (PLATFORM_MODES.some((item) => item.value === candidate) && candidate !== "off") return candidate;
+    if (mode && mode !== "off" && PLATFORM_MODES.some((item) => item.value === mode)) return mode;
+    return platform.defaultMode;
+  }
+
   function normalizePlatformSetting(platform, value) {
-    const defaults = { mode: platform.defaultMode, entryPoints: DEFAULT_ENTRY_POINTS, sections: sectionDefaults(platform), surfaces: surfaceDefaults(platform) };
+    const defaults = { mode: platform.defaultMode, lastEnabledMode: defaultLastEnabledMode(platform), entryPoints: DEFAULT_ENTRY_POINTS, sections: sectionDefaults(platform), surfaces: surfaceDefaults(platform) };
     // Apply here so old Ultimate Lock snapshots migrate exactly like ordinary settings.
     // No video-only selection may silently turn into a broader feed restriction.
     if (platform.id === "x") {
@@ -314,7 +346,8 @@
       }
     }
     if (typeof value === "string") {
-      return { mode: PLATFORM_MODES.some((mode) => mode.value === value) ? value : defaults.mode, entryPoints: defaults.entryPoints, sections: defaults.sections, surfaces: defaults.surfaces };
+      const mode = PLATFORM_MODES.some((item) => item.value === value) ? value : defaults.mode;
+      return { mode, lastEnabledMode: normalizeLastEnabledMode(platform, null, mode), entryPoints: defaults.entryPoints, sections: defaults.sections, surfaces: defaults.surfaces };
     }
     if (!value || typeof value !== "object") {
       return defaults;
@@ -329,8 +362,10 @@
       result[surface.id] = typeof rawSurfaces[surface.id] === "boolean" ? rawSurfaces[surface.id] : defaults.surfaces[surface.id];
       return result;
     }, {});
+    const mode = PLATFORM_MODES.some((item) => item.value === value.mode) ? value.mode : defaults.mode;
     return {
-      mode: PLATFORM_MODES.some((mode) => mode.value === value.mode) ? value.mode : defaults.mode,
+      mode,
+      lastEnabledMode: normalizeLastEnabledMode(platform, value, mode),
       entryPoints: normalizeEntryPoints(value.entryPoints),
       sections,
       surfaces
@@ -356,21 +391,39 @@
   }
 
   function validateEntry(input) {
-    const raw = String(input || "").trim().toLowerCase();
+    const raw = String(input || "").trim();
     if (!raw) return { ok: false, error: "Enter a domain or domain/path." };
-    if (/\s|\*|[?#]/.test(raw)) return { ok: false, error: "Use a plain domain or path without spaces, wildcards, queries, or hashes." };
+    if (/\s/.test(raw)) return { ok: false, error: "Use a plain domain or path without spaces." };
+    if (raw.includes("*")) return { ok: false, error: "Wildcards are not supported. Add the exact host, e.g. example.com." };
+    if (raw.includes("?")) return { ok: false, error: "Queries are not supported. Add the domain or path without ? and parameters." };
+    if (raw.includes("#")) return { ok: false, error: "Fragments are not supported. Add the domain or path without #." };
+    if (/^http:\/\//i.test(raw)) return { ok: false, error: "Use an HTTPS host or a bare domain/path. Explicit http:// URLs are not accepted." };
+    if (raw.includes("@")) return { ok: false, error: "Credentials are not supported. Add the domain without userinfo." };
+    let withScheme = raw;
+    if (!/^https:\/\//i.test(withScheme)) withScheme = `https://${withScheme}`;
     let parsed;
     try {
-      parsed = new URL(/^https?:\/\//.test(raw) ? raw : `https://${raw}`);
+      parsed = new URL(withScheme);
     } catch (_error) {
       return { ok: false, error: "Use a domain like example.com/reels." };
     }
-    const host = parsed.hostname.replace(/^www\./, "");
+    if (parsed.username || parsed.password) return { ok: false, error: "Credentials are not supported. Add the domain without userinfo." };
+    if (parsed.port) return { ok: false, error: "Ports are not supported. Add the domain without :port." };
+    if (parsed.search && parsed.search !== "") return { ok: false, error: "Queries are not supported. Add the domain or path without ? and parameters." };
+    if (parsed.hash && parsed.hash !== "") return { ok: false, error: "Fragments are not supported. Add the domain or path without #." };
+    // Hostnames are case-insensitive: lowercase the host only. Paths are preserved
+    // exactly (case-sensitive), and www.example.com is a distinct host from example.com.
+    const host = parsed.hostname.toLowerCase();
     if (!host.includes(".") || !/^[a-z0-9.-]+$/.test(host)) return { ok: false, error: "Use a valid domain, such as example.com." };
+    if (host.startsWith("-") || host.endsWith("-") || host.includes("..")) return { ok: false, error: "Use a valid domain, such as example.com." };
     const path = parsed.pathname.replace(/\/{2,}/g, "/").replace(/\/$/, "");
     // An empty path means the whole site: "example.com" blocks example.com/*.
-    if (path && !/^\/[a-z0-9._~!$&'()+,;=:@%/-]*$/i.test(path)) return { ok: false, error: "Use a simple URL path." };
-    return { ok: true, value: `${host}${path}` };
+    // Path case is preserved: /Private and /private are different boundaries.
+    if (path && path !== "" && path !== "/") {
+      if (!/^\/[A-Za-z0-9._~!$&'()+,;=:@%/-]*$/.test(path)) return { ok: false, error: "Use a simple URL path." };
+      return { ok: true, value: `${host}${path}` };
+    }
+    return { ok: true, value: host };
   }
 
   function normalizeSettings(raw) {
@@ -513,6 +566,39 @@
     return Boolean(setting.sections[section.id]);
   }
 
+  // Full-page sections: addictive pages (home feeds, Explore, Trending, Groups, ...) that
+  // are blocked entirely with a focus screen instead of having entry points hidden in place.
+  // Offered as one-click options on the main settings cards so they are not buried in Advanced.
+  function fullPageSections(platform) {
+    const definition = platformById(typeof platform === "string" ? platform : platform && platform.id);
+    if (!definition) return [];
+    return definition.sections.filter((section) => section.fullPage);
+  }
+
+  // Sets one section on or off, switching the platform to Selected sections mode when needed
+  // so short-form defaults are preserved. Collapses back to Short-form only when the sections
+  // again match exactly what that mode would produce. Unknown platforms or sections leave the
+  // settings untouched. Always returns normalized settings.
+  function setSectionBlocked(settings, platformId, sectionId, blocked) {
+    const source = settings && settings.schemaVersion === SCHEMA_VERSION ? normalizeSettings(settings) : normalizeSettings(settings);
+    const definition = platformById(platformId);
+    const section = definition ? definition.sections.find((item) => item.id === sectionId) : null;
+    if (!definition || !section) return source;
+    const setting = source.platforms[definition.id];
+    const want = Boolean(blocked);
+    if (setting.mode !== "selected") {
+      if (setting.mode === "off" && !want) return source;
+      setting.mode = "selected";
+      definition.sections.forEach((item) => { setting.sections[item.id] = Boolean(item.shortform); });
+    }
+    setting.sections[section.id] = want;
+    if (definition.defaultMode === "shortform"
+      && definition.sections.every((item) => setting.sections[item.id] === Boolean(item.shortform))) {
+      setting.mode = "shortform";
+    }
+    return normalizeSettings(source);
+  }
+
   // True when blocked entry points on this platform should be removed from pages that stay available.
   // In "keep" mode the click and navigation guards still stop them from opening.
   function hidesEntryPoints(settings, platform) {
@@ -597,18 +683,19 @@
       : { host: checked.value.slice(0, slash), path: checked.value.slice(slash) };
   }
 
-  // True when a URL falls under a personal custom boundary: same host (ignoring a www.
-  // prefix on either side) and the entry path is empty or a path prefix of the URL.
+  // True when a URL falls under a personal custom boundary: exact host match
+  // (www.example.com and example.com are distinct) and the entry path is empty
+  // or a case-sensitive path prefix of the URL.
   function matchCustomEntry(entry, input) {
     const parts = typeof entry === "string" ? splitCustomEntry(entry) : null;
     if (!parts) return false;
     let url;
     try { url = input instanceof URL ? input : new URL(input); } catch (_error) { return false; }
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-    const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    if (host !== parts.host.replace(/^www\./, "")) return false;
+    const host = url.hostname.toLowerCase();
+    if (host !== parts.host) return false;
     if (!parts.path) return true;
-    const path = url.pathname.toLowerCase();
+    const path = url.pathname;
     return path === parts.path || path.startsWith(`${parts.path}/`);
   }
 
@@ -629,22 +716,30 @@
     return entry ? { blocked: true, entry } : { blocked: false, entry: null };
   }
 
-  // Content-script match pattern covering exactly one custom entry, for dynamic registration.
-  // Chrome match patterns need a path starting with "/"; a trailing "*" covers the subtree.
+  // Host-wide content-script match pattern for a custom entry. Guards register
+  // across the whole granted host (not just the blocked path) so allowed pages
+  // can hide/refuse blocked links and detect SPA navigation into the blocked path.
+  // Chrome match patterns need a path starting with "/"; "/*" covers the host.
   function customScriptPattern(entry) {
     const parts = typeof entry === "string" ? splitCustomEntry(entry) : null;
     if (!parts) return null;
-    return `https://${parts.host}/${parts.path.replace(/^\//, "")}*`;
+    return `https://${parts.host}/*`;
   }
 
-  // Stable registration id for a custom entry (hash keeps similar entries distinct).
+  // Stable registration id per host: entries sharing one host share one guard.
   function customScriptId(entry) {
-    const value = typeof entry === "string" ? entry : "";
+    const parts = typeof entry === "string" ? splitCustomEntry(entry) : null;
+    const value = parts ? parts.host : String(entry || "");
     let hash = 5381;
     for (let index = 0; index < value.length; index += 1) {
       hash = ((hash << 5) + hash + value.charCodeAt(index)) >>> 0;
     }
     return `reelless-custom-${hash.toString(36)}`;
+  }
+
+  function customHostForEntry(entry) {
+    const parts = typeof entry === "string" ? splitCustomEntry(entry) : null;
+    return parts ? parts.host : null;
   }
 
   function pauseUntil(duration, date) {
@@ -666,14 +761,106 @@
     return !safeMeta.reviewDismissed && !safeMeta.reviewShown && safeMeta.activeDayCount >= 7;
   }
 
+  // Switch a platform off while remembering its last enabled mode, or switch it
+  // back on by restoring that mode (falling back to the site default). Preserves
+  // section/surface/entry choices so Off -> On never resets to Short-form only.
+  function setPlatformEnabled(settings, platformId, enabled) {
+    const source = normalizeSettings(settings);
+    const definition = platformById(platformId);
+    if (!definition) return source;
+    const setting = source.platforms[definition.id];
+    if (enabled) {
+      if (setting.mode !== "off") return source;
+      const restore = setting.lastEnabledMode && setting.lastEnabledMode !== "off"
+        ? setting.lastEnabledMode : definition.defaultMode;
+      setting.mode = PLATFORM_MODES.some((item) => item.value === restore) ? restore : definition.defaultMode;
+    } else {
+      if (setting.mode === "off") return source;
+      setting.lastEnabledMode = setting.mode;
+      setting.mode = "off";
+    }
+    return normalizeSettings(source);
+  }
+
+  // Single effective protection state for status UI. Ultimate Lock is a separate
+  // indicator, not proof any site is protected. Order matters: off beats paused,
+  // paused beats schedule, schedule beats empty selections.
+  function getEffectiveStatus(settings, date) {
+    const source = settings && settings.schemaVersion === SCHEMA_VERSION ? settings : normalizeSettings(settings);
+    const now = date instanceof Date ? date : new Date(date || Date.now());
+    if (source.ultimate && source.ultimate.enabled) {
+      const active = isScheduleActive(source, now);
+      return { key: active ? "locked-active" : "locked-paused", active, locked: true };
+    }
+    if (!source.protectionEnabled) return { key: "off", active: false, locked: false };
+    if (source.pausedUntil && Date.parse(source.pausedUntil) > now.getTime()) {
+      return { key: "paused", active: false, locked: false, pausedUntil: source.pausedUntil };
+    }
+    if (!isScheduleActive(source, now)) return { key: "outside-schedule", active: false, locked: false };
+    const anyEnabled = PLATFORMS.some((platform) => {
+      const setting = source.platforms[platform.id];
+      if (!setting || setting.mode === "off") return false;
+      if (setting.mode === "all") return true;
+      if (setting.mode === "shortform") return platform.sections.some((section) => section.shortform);
+      return platform.sections.some((section) => setting.sections[section.id]);
+    }) || (source.customEntries && source.customEntries.length > 0);
+    if (!anyEnabled) return { key: "no-selections", active: false, locked: false };
+    return { key: "active", active: true, locked: false };
+  }
+
+  function statusText(status, formatTime) {
+    const fmt = typeof formatTime === "function" ? formatTime : (value) => String(value);
+    switch (status.key) {
+      case "off": return "Protection is off";
+      case "paused": return `Paused until ${fmt(status.pausedUntil)}`;
+      case "outside-schedule": return "Outside your schedule";
+      case "no-selections": return "Nothing selected to block";
+      case "locked-active": return "Ultimate Lock is active";
+      case "locked-paused": return "Ultimate Lock is active";
+      case "active": return "Protection is active";
+      default: return "Protection is active";
+    }
+  }
+
+  function getReviewUrl(browser) {
+    const key = browser === "firefox" || browser === "edge" ? browser : "chrome";
+    const entry = DISTRIBUTION[key];
+    return entry && entry.reviewUrl ? entry.reviewUrl : null;
+  }
+
+  function getSupportUrl() {
+    return "https://github.com/InfectedDuck/Google-Chrome-Safe-Short-Video-content-blocker/issues";
+  }
+
+  // User-initiated diagnostics only: version, browser, effective state, per-site
+  // modes and access flags. Never includes URLs, custom entries, page content,
+  // or lock reflections, and never submits automatically.
+  function buildDiagnostics(info) {
+    const source = info || {};
+    const lines = [
+      `ReelLess ${source.version || "unknown"}`,
+      `Browser: ${source.browser || "unknown"}`,
+      `Status: ${source.status || "unknown"}`,
+      `Schedule: ${source.schedule || "unknown"}`,
+      `Ultimate Lock: ${source.locked ? "active" : "off"}`
+    ];
+    (source.platforms || []).forEach((item) => {
+      lines.push(`${item.id}: ${item.mode}${item.access ? ` (${item.access})` : ""}`);
+    });
+    if (source.limitation) lines.push(`Note: ${source.limitation}`);
+    return lines.join("\n");
+  }
+
   const api = {
     SETTINGS_KEY, LEGACY_SETTINGS_KEY, STATS_KEY, META_KEY, SCHEMA_VERSION,
-    CUSTOM_RULE_START, MAX_CUSTOM_ENTRIES, CORE_PLATFORM_IDS,
+    CUSTOM_RULE_START, MAX_CUSTOM_ENTRIES, CORE_PLATFORM_IDS, DISTRIBUTION,
     SCHEDULE_PRESETS, PLATFORM_MODES, ENTRY_POINT_MODES, APPEARANCE_MODES, ULTIMATE_PROFILES, PLATFORMS,
     platformById, getDefaultSettings, normalizeSettings, normalizeStats, normalizeMeta,
     validateEntry, permissionPatternForEntry, localDay, isScheduleActive,
-    platformForUrl, sectionForUrl, shouldBlockUrl, sectionBlocked, hidesEntryPoints, activeSurfaces, buildDynamicRules,
-    matchCustomEntry, customEntryForUrl, shouldBlockCustomUrl, customScriptPattern, customScriptId,
+    platformForUrl, sectionForUrl, shouldBlockUrl, sectionBlocked, fullPageSections, setSectionBlocked, setPlatformEnabled,
+    getEffectiveStatus, statusText, getReviewUrl, getSupportUrl, buildDiagnostics,
+    hidesEntryPoints, activeSurfaces, buildDynamicRules,
+    matchCustomEntry, customEntryForUrl, shouldBlockCustomUrl, customScriptPattern, customScriptId, customHostForEntry, splitCustomEntry,
     createUltimateSettings, releaseUltimateSettings, pauseUntil, reviewEligible
   };
 

@@ -75,8 +75,13 @@ try {
   assert.equal(await settings.locator(".advanced-summary-action").count(), 1, "Advanced controls should have a visible disclosure affordance");
   assert.equal(await settings.locator(".advanced-chevron").count(), 1, "Advanced controls should show a state chevron");
   assert.equal(await settings.locator("input[data-direct-toggle]").count(), 0, "Retired Direct-video controls must not appear in Settings");
+  await settings.locator("details.advanced > summary").click();
+  assert.equal(await settings.locator("details.advanced").getAttribute("open"), "", "Advanced controls should open for Ultimate Lock checks");
+  await settings.locator("#ultimateDetails > summary").click();
   assert.equal(await settings.locator("#ultimateSetup").isVisible(), true, "Ultimate Lock setup should be visible before enabling it");
   assert.equal(await settings.locator("#ultimateRelease").isHidden(), true, "Ultimate Lock removal controls must stay hidden before enabling it");
+  await settings.locator("#ultimateDetails > summary").click();
+  await settings.locator("details.advanced > summary").click();
   assert.equal(await settings.locator("#appearance").inputValue(), "dark", "dark should be the default appearance");
   await settings.selectOption("#appearance", "light");
   await settings.waitForFunction(() => document.documentElement.dataset.theme === "light");
@@ -136,15 +141,16 @@ try {
   assert.equal(await settings.locator('#corePlatforms select[data-entry-points="youtube"]').inputValue(), "hide", "hiding is the default");
   await settings.selectOption('#corePlatforms select[data-entry-points="youtube"]', "keep");
   await settings.waitForTimeout(300);
-  assert.equal(await settings.locator('#detailedCorePlatforms select[data-entry-points="youtube"]').inputValue(), "keep", "the detailed row follows the core card");
+  assert.equal(await settings.locator('#corePlatforms select[data-entry-points="youtube"]').inputValue(), "keep", "the core card keeps its entry-point choice");
 
   // Optional page surfaces: present, off by default, and offered only where a platform declares them.
-  const surfaceBoxes = settings.locator('#detailedCorePlatforms input[data-surface][data-platform="youtube"]');
-  assert.equal(await surfaceBoxes.count(), 4, "YouTube should offer its four optional surfaces");
-  for (let i = 0; i < 4; i += 1) {
+  // Core cards are the single place for core choices now (no detailed-core duplicate).
+  const surfaceBoxes = settings.locator('#corePlatforms input[data-surface][data-platform="youtube"]');
+  assert.equal(await surfaceBoxes.count(), 5, "YouTube should offer its five optional surfaces");
+  for (let i = 0; i < 5; i += 1) {
     assert.equal(await surfaceBoxes.nth(i).isChecked(), false, "every surface must start off");
   }
-  assert.equal(await settings.locator('#detailedCorePlatforms input[data-surface][data-platform="instagram"]').count(), 0, "platforms without surfaces show no surface controls");
+  assert.equal(await settings.locator('#corePlatforms input[data-surface][data-platform="instagram"]').count(), 0, "platforms without surfaces show no surface controls");
   await surfaceBoxes.first().check();
   await settings.waitForTimeout(400);
   assert.equal(
@@ -286,9 +292,11 @@ try {
   }));
   await facebook.goto("https://www.facebook.com/");
   await facebook.waitForFunction(() => document.documentElement.dataset.reellessMode === "hide");
-  assert.deepEqual(await hiddenIds(facebook), [], "Facebook: feed posts keep their geometry instead of collapsing");
+  // Feed posts keep their geometry as placeholders; navigation chrome outside the feed
+  // collapses outright rather than showing a notice.
+  assert.deepEqual(await hiddenIds(facebook), ["nav-reels"], "Facebook: only nav chrome collapses; feed posts keep placeholders");
   // The Reels shelf keeps a compact placeholder with its heading; a post holding a comment
-  // thread keeps its place while its Reel link goes invisible, as does the nav entry.
+  // thread keeps its place while its Reel link goes invisible.
   const fbUnit = await facebook.evaluate(() => {
     const node = document.getElementById("fb-reels-unit");
     const rect = node.getBoundingClientRect();
@@ -301,13 +309,6 @@ try {
     "hidden",
     "Facebook: the comment-thread post keeps its place while its Reel link goes invisible"
   );
-  const fbNav = await facebook.evaluate(() => {
-    const item = document.getElementById("nav-reels");
-    const link = item.querySelector("a");
-    return { height: item.getBoundingClientRect().height, linkVisibility: getComputedStyle(link).visibility };
-  });
-  assert.equal(fbNav.height, 56, "Facebook: the nav Reels entry keeps a compact placeholder");
-  assert.equal(fbNav.linkVisibility, "hidden", "Facebook: the nav Reels link goes invisible without moving the feed");
   assert.equal(await facebook.locator("#fb-post").evaluate((node) => node.getBoundingClientRect().height === 56), false, "ordinary Facebook posts keep their natural height");
   // Watch is part of the default protection and needs the script (pausing, dialog blocking),
   // so the script stays on for Facebook even where :has() exists; Reels hiding is still asserted
@@ -347,6 +348,8 @@ try {
   await tiktok.waitForSelector("#reelless-focus-screen");
   assert.match(await tiktok.locator("#reelless-focus-title").textContent(), /TikTok is outside your focus plan/i);
 
+  await settings.bringToFront();
+  await settings.locator("#ultimateDetails > summary").click();
   await settings.selectOption("#ultimateProfile", "keep_current");
   await settings.fill("#ultimateConfirmPhrase", "I ACCEPT THE LOCK");
   await settings.locator("#enableUltimate").click();
@@ -365,6 +368,10 @@ try {
   assert.equal(await tiktok.locator('[data-action="pause"]').count(), 0, "Ultimate Lock removes the focus-screen pause action");
 
   await settings.bringToFront();
+  if (await settings.locator("#ultimateRelease").isHidden()) {
+    await settings.locator("#ultimateDetails > summary").click();
+  }
+  await settings.locator("#unlockAction").waitFor({ state: "visible" });
   await settings.selectOption("#unlockAction", "remove_ultimate");
   await settings.fill("#unlockPhrase", "REMOVE ULTIMATE");
   const privateReason = "I need to change my protection choices today.";

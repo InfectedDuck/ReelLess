@@ -1,4 +1,4 @@
-# Chrome Web Store Listing — ReelLess v2.3.0
+# Chrome Web Store Listing — ReelLess v2.3.1
 
 ## Name
 

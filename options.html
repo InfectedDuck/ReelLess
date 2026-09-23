@@ -19,14 +19,14 @@
     </section>
 
     <section class="panel core-section" aria-labelledby="coreTitle">
-      <div class="section-title"><div><span class="eyebrow">Start here</span><h2 id="coreTitle">Core protection</h2><p>Four defaults that remove the main short-form loops.</p></div><span class="section-note">Ready after install</span></div>
-      <div id="corePlatforms" class="platform-grid"></div>
-      <p class="core-footnote">Turn a site off at any time. For each site, choose whether Shorts and Reels are hidden from feeds or stay visible but cannot be opened. Your choices stay in Chrome.</p>
+      <div class="section-title"><div><span class="eyebrow">Start here</span><h2 id="coreTitle">Core protection</h2><p>Four sites, one window. Pick <strong>Short-form only</strong>, <strong>Selected sections</strong>, or <strong>Block everything</strong> per site.</p></div><span class="section-note">Ready after install</span></div>
+      <div id="corePlatforms" class="platform-grid platform-grid-full"></div>
+      <p class="core-footnote">Turn a site off with its Protected switch — turning it back on restores your previous mode and choices. Choose Selected sections to tick exactly which parts to block — e.g. Home feed, Explore, Stories. Blocking the YouTube Home page stops the whole page with a focus screen; hiding Home recommendations only quiets the feed under “Hide page elements”. For each site, also choose whether blocked Shorts and Reels are hidden from feeds or stay visible but cannot be opened. Your choices stay in this browser.</p>
     </section>
 
     <section class="panel appearance" aria-labelledby="appearanceTitle">
       <div><span class="eyebrow">Appearance</span><h2 id="appearanceTitle">Make it yours</h2><p>Dark is the default. This setting changes ReelLess only.</p></div>
-      <label for="appearance">Theme<select id="appearance"><option value="dark">Dark</option><option value="light">Light</option><option value="system">Use Chrome setting</option></select></label>
+      <label for="appearance">Theme<select id="appearance"><option value="dark">Dark</option><option value="light">Light</option><option value="system">Use browser setting</option></select></label>
     </section>
 
     <details class="panel advanced">
@@ -35,7 +35,7 @@
         <span class="advanced-summary-action"><span class="advanced-toggle-label" aria-hidden="true"></span><span class="advanced-chevron" aria-hidden="true"></span></span>
       </summary>
       <div class="advanced-body">
-        <section class="advanced-intro"><p>Advanced choices stay out of your way until you need them. Optional sites ask Chrome for access only when you turn them on.</p><span>Nothing is sent anywhere.</span></section>
+        <section class="advanced-intro"><p>Advanced choices stay out of your way until you need them. Optional sites ask your browser for access only when you turn them on. After granting access, refresh already-open tabs on that site.</p><span>Nothing is sent anywhere.</span></section>
 
         <section class="subsection routine-section" aria-labelledby="scheduleTitle">
           <div><span class="section-kicker">Routine</span><h2 id="scheduleTitle">Protect your focus window</h2><p>Always on has no midnight gap. Choose a routine only if it helps.</p></div>
@@ -45,42 +45,46 @@
         <p id="mobileNotice" class="mobile-notice" hidden>Firefox for Android has no screen for granting or withdrawing access to extra sites, so optional sites and custom pages are unavailable here. The four core sites work as normal.</p>
 
         <section id="moreSitesSection" class="subsection" aria-labelledby="moreSitesTitle">
-          <div><span class="section-kicker">Optional access</span><h2 id="moreSitesTitle">More sites, when you choose</h2><p>Open a site to choose its mode. Chrome asks before ReelLess can run there.</p></div>
+          <div><span class="section-kicker">Optional access</span><h2 id="moreSitesTitle">More sites, when you choose</h2><p>Open a site to choose its mode. Your browser asks before ReelLess can run there. After granting access, refresh already-open tabs on that site.</p></div>
           <div id="advancedPlatforms" class="advanced-platforms"></div>
         </section>
 
-        <section class="subsection" aria-labelledby="coreModesTitle">
-          <div><span class="section-kicker">Detailed modes</span><h2 id="coreModesTitle">Fine-tune core protection</h2><p>Keep the defaults above, or choose exactly which sections stay available and how their entry points appear in feeds.</p></div>
-          <div id="detailedCorePlatforms" class="advanced-platforms core-modes"></div>
-        </section>
-
         <section id="customSection" class="subsection" aria-labelledby="customTitle">
-          <div><span class="section-kicker">Custom pages</span><h2 id="customTitle">Add a personal boundary</h2><p>Block any distracting page the checklists above do not cover, e.g. <code>example.com/shorts</code> or <code>example.com/explore</code>. Blocked pages stop in place with a focus screen, their links are hidden, and opening them is refused. Access is requested only for the entry you add.</p></div>
+          <div><span class="section-kicker">Custom pages</span><h2 id="customTitle">Add a personal boundary</h2><p>Block any distracting page the checklists above do not cover, e.g. <code>example.com/shorts</code> or <code>example.com/explore</code>. Matching is exact-host (<code>www.example.com</code> and <code>example.com</code> are different — add each separately) and case-sensitive for paths. Direct visits may show the browser's blocked-page error; navigation within guarded pages uses the ReelLess focus screen. Access is requested only for the entry you add.</p></div>
           <div><form id="customForm" class="custom-form"><label for="customEntry">Domain or path</label><div><input id="customEntry" placeholder="example.com/reels" autocomplete="off"><button type="submit">Add boundary</button></div><p id="customError" class="error" role="alert"></p></form><ul id="customList" class="custom-list"></ul></div>
         </section>
+
+        <details id="ultimateDetails" class="subsection ultimate-details">
+          <summary><span><strong>Ultimate Lock (Advanced)</strong><small>Optional commitment — collapsed until needed</small></span><span class="row-chevron" aria-hidden="true"></span></summary>
+          <div id="ultimatePanel" class="ultimate ultimate-inner" aria-labelledby="ultimateTitle">
+            <div class="ultimate-heading"><span class="eyebrow">Optional commitment</span><h2 id="ultimateTitle">Ultimate Lock</h2><p id="ultimateDescription">Lock protection to remove ReelLess pause and setting changes. Choose what stays blocked before you turn it on.</p></div>
+            <div id="ultimateSetup" class="ultimate-flow"><label>What should Ultimate Lock enforce?<select id="ultimateProfile"><option value="block_shortform">Block all core short-form content</option><option value="keep_current">Keep my current platform choices</option></select></label><label>Type <code>I ACCEPT THE LOCK</code> to confirm<input id="ultimateConfirmPhrase" autocomplete="off" spellcheck="false" placeholder="I ACCEPT THE LOCK"></label><p class="friction-note">This forces protection on and disables pausing, platform switches, schedules, and custom-list changes in ReelLess. Removing it requires a private reflection, three active check-ins, and at least one focused minute.</p><p class="friction-note">It cannot stop the browser from disabling, uninstalling, or clearing the extension.</p><button id="enableUltimate" class="danger-button" type="button">Enable Ultimate Lock</button></div>
+            <div id="ultimateRelease" class="ultimate-flow" hidden>
+              <p class="lock-active">Ultimate Lock is active. Protection is on and the selected profile is fixed.</p>
+              <label>Choose the action<select id="unlockAction"><option value="">Choose an action</option><option value="remove_ultimate">Remove Ultimate Lock</option></select></label>
+              <label>Type <code>REMOVE ULTIMATE</code> to continue<input id="unlockPhrase" autocomplete="off" spellcheck="false" placeholder="REMOVE ULTIMATE"></label>
+              <label>Why are you choosing to remove the lock?<textarea id="unlockReason" minlength="20" maxlength="240" rows="3" autocomplete="off" spellcheck="true" placeholder="Write at least 20 characters."></textarea><small class="private-note">Private and temporary. ReelLess never saves this text.</small></label>
+              <button id="startUnlock" type="button">Begin focused release</button>
+              <div id="unlockRitual" class="unlock-ritual" hidden>
+                <div id="unlockProgress" class="unlock-progress" aria-label="Unlock checkpoints"><span></span><span></span><span></span></div>
+                <p id="unlockTimer" class="friction-note" role="status" aria-live="polite">Keep this Settings page open and focused for one minute.</p>
+                <button id="unlockCheckpoint" class="checkpoint-button" type="button" hidden></button>
+              </div>
+              <button id="confirmUnlock" class="danger-button" type="button" disabled>Remove Ultimate Lock</button>
+            </div>
+            <p id="ultimateFeedback" class="error" role="alert"></p>
+          </div>
+        </details>
       </div>
     </details>
 
-    <section id="ultimatePanel" class="panel ultimate" aria-labelledby="ultimateTitle">
-      <div class="ultimate-heading"><span class="eyebrow">Optional commitment</span><h2 id="ultimateTitle">Ultimate Lock</h2><p id="ultimateDescription">Lock protection to remove ReelLess pause and setting changes. Choose what stays blocked before you turn it on.</p></div>
-      <div id="ultimateSetup" class="ultimate-flow"><label>What should Ultimate Lock enforce?<select id="ultimateProfile"><option value="block_shortform">Block all core short-form content</option><option value="keep_current">Keep my current platform choices</option></select></label><label>Type <code>I ACCEPT THE LOCK</code> to confirm<input id="ultimateConfirmPhrase" autocomplete="off" spellcheck="false" placeholder="I ACCEPT THE LOCK"></label><p class="friction-note">This forces protection on and disables pausing, platform switches, schedules, and custom-list changes in ReelLess. Removing it requires a private reflection, three active check-ins, and at least one focused minute.</p><p class="friction-note">It cannot stop Chrome from disabling, uninstalling, or clearing the extension.</p><button id="enableUltimate" class="danger-button" type="button">Enable Ultimate Lock</button></div>
-      <div id="ultimateRelease" class="ultimate-flow" hidden>
-        <p class="lock-active">Ultimate Lock is active. Protection is on and the selected profile is fixed.</p>
-        <label>Choose the action<select id="unlockAction"><option value="">Choose an action</option><option value="remove_ultimate">Remove Ultimate Lock</option></select></label>
-        <label>Type <code>REMOVE ULTIMATE</code> to continue<input id="unlockPhrase" autocomplete="off" spellcheck="false" placeholder="REMOVE ULTIMATE"></label>
-        <label>Why are you choosing to remove the lock?<textarea id="unlockReason" minlength="20" maxlength="240" rows="3" autocomplete="off" spellcheck="true" placeholder="Write at least 20 characters."></textarea><small class="private-note">Private and temporary. ReelLess never saves this text.</small></label>
-        <button id="startUnlock" type="button">Begin focused release</button>
-        <div id="unlockRitual" class="unlock-ritual" hidden>
-          <div id="unlockProgress" class="unlock-progress" aria-label="Unlock checkpoints"><span></span><span></span><span></span></div>
-          <p id="unlockTimer" class="friction-note" role="status" aria-live="polite">Keep this Settings page open and focused for one minute.</p>
-          <button id="unlockCheckpoint" class="checkpoint-button" type="button" hidden></button>
-        </div>
-        <button id="confirmUnlock" class="danger-button" type="button" disabled>Remove Ultimate Lock</button>
-      </div>
-      <p id="ultimateFeedback" class="error" role="alert"></p>
-    </section>
+    <section class="panel coverage" aria-labelledby="coverageTitle"><span class="eyebrow">Coverage</span><h2 id="coverageTitle">What ReelLess covers</h2><p>Four default sites (YouTube, Instagram, Facebook, TikTok) plus seven optional sites (X, Reddit, Snapchat, Twitch, Pinterest, LinkedIn, Threads). Facebook protection is <strong>Reels and videos</strong>: feed videos, Watch, Live, and video posts are included with Reels — uncheck Watch under Selected sections to allow videos again. Preserved: YouTube watch pages and search, Instagram profiles and messages, Facebook groups/messages/marketplace (unless blocked), TikTok messages/upload/settings, and all Direct/Messenger conversations. Desktop Chrome, Edge, and Firefox are supported. This affects supported browser pages, not native social apps or every embedded player.</p></section>
 
-    <section class="panel privacy" aria-labelledby="privacyTitle"><span class="eyebrow">Privacy</span><h2 id="privacyTitle">Nothing leaves Chrome.</h2><p>ReelLess checks the current URL and local page elements needed to find short-form entry points. Settings and counts stay in Chrome storage.</p><nav><a href="privacy.html" target="_blank">Privacy policy</a><a href="https://github.com/InfectedDuck/Google-Chrome-Safe-Short-Video-content-blocker/issues" target="_blank" rel="noreferrer">Support</a></nav></section>
+    <section class="panel local-data" aria-labelledby="dataTitle"><span class="eyebrow">Local data</span><h2 id="dataTitle">Stored on this device only</h2><p>Settings and Total blocked attempts stay in browser storage. Uninstalling the extension or clearing browser data removes them. Resetting counters leaves settings, lock, and review state untouched.</p><div class="form-row"><button id="resetCounters" type="button">Reset counters</button><span id="resetStatus" class="save-status" role="status"></span></div></section>
+
+    <section class="panel help" aria-labelledby="helpTitle"><span class="eyebrow">Help</span><h2 id="helpTitle">Help and diagnostics</h2><p id="diagnosticsSummary">Loading protection state…</p><p class="friction-note">Known limits: direct custom-domain visits may show the browser's blocked-page error instead of the focus screen; already-open tabs need a refresh after granting access or installing.</p><div class="form-row"><button id="copyDiagnostics" type="button">Copy diagnostics</button><a id="reportProblem" href="https://github.com/InfectedDuck/Google-Chrome-Safe-Short-Video-content-blocker/issues" target="_blank" rel="noreferrer">Report a problem</a><span id="diagnosticsStatus" class="save-status" role="status"></span></div></section>
+
+    <section class="panel privacy" aria-labelledby="privacyTitle"><span class="eyebrow">Privacy</span><h2 id="privacyTitle">Nothing leaves this browser.</h2><p>ReelLess checks the current URL and local page elements needed to find short-form entry points. Settings and counts stay in browser storage.</p><nav><a href="privacy.html" target="_blank">Privacy policy</a><a href="https://github.com/InfectedDuck/Google-Chrome-Safe-Short-Video-content-blocker/issues" target="_blank" rel="noreferrer">Support</a></nav></section>
   </main>
 
   <script src="shared.js"></script>

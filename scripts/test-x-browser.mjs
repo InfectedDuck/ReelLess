@@ -23,9 +23,75 @@ try {
       globalThis.__settings = value;
       listeners.forEach((fn) => fn({ settingsV2: { newValue: value } }, "local"));
     };
+    const applyPatch = (patch) => {
+      const next = JSON.parse(JSON.stringify(globalThis.__settings));
+      if (patch.protectionEnabled !== undefined) next.protectionEnabled = patch.protectionEnabled;
+      if (patch.pausedUntil !== undefined) next.pausedUntil = patch.pausedUntil;
+      if (patch.schedulePreset !== undefined) next.schedulePreset = patch.schedulePreset;
+      if (patch.customStart !== undefined) next.customStart = patch.customStart;
+      if (patch.customEnd !== undefined) next.customEnd = patch.customEnd;
+      if (patch.appearance !== undefined) next.appearance = patch.appearance;
+      if (patch.platforms) {
+        for (const [id, change] of Object.entries(patch.platforms)) {
+          if (!next.platforms[id]) continue;
+          if (change.mode !== undefined) {
+            if (change.mode === "off") {
+              if (next.platforms[id].mode !== "off") next.platforms[id].lastEnabledMode = next.platforms[id].mode;
+              next.platforms[id].mode = "off";
+            } else {
+              const wasOff = next.platforms[id].mode === "off";
+              next.platforms[id].mode = change.mode;
+              if (wasOff) next.platforms[id].lastEnabledMode = change.mode;
+            }
+          }
+          if (change.sections) Object.assign(next.platforms[id].sections, change.sections);
+          if (change.surfaces) Object.assign(next.platforms[id].surfaces, change.surfaces);
+          if (change.entryPoints !== undefined) next.platforms[id].entryPoints = change.entryPoints;
+        }
+      }
+      if (Array.isArray(patch.customEntries)) next.customEntries = patch.customEntries;
+      return next;
+    };
     globalThis.chrome = {
-      storage: { local: { get: async () => ({ settingsV2: globalThis.__settings }), set: async (data) => { globalThis.__settings = data.settingsV2; listeners.forEach((fn) => fn({ settingsV2: { newValue: data.settingsV2 } }, "local")); } }, onChanged: { addListener: (fn) => listeners.push(fn) } },
-      runtime: { sendMessage: async () => ({ ok: true }), openOptionsPage() {}, getPlatformInfo: async () => ({ os: "win" }) },
+      storage: { local: { get: async () => ({ settingsV2: globalThis.__settings }), set: async (data) => { if (data.settingsV2) { globalThis.__settings = data.settingsV2; listeners.forEach((fn) => fn({ settingsV2: { newValue: data.settingsV2 } }, "local")); } } }, onChanged: { addListener: (fn) => listeners.push(fn) } },
+      runtime: {
+        sendMessage: async (message) => {
+          if (!message || typeof message !== "object") return { ok: false };
+          if (message.type === "getState") return { ok: true, settings: globalThis.__settings, stats: { localDay: "2026-09-23", todayCount: 0, totalCount: 0 }, meta: {}, status: "active", platforms: [] };
+          if (message.type === "patchSettings") {
+            const next = applyPatch(message.patch || {});
+            globalThis.__settings = next;
+            listeners.forEach((fn) => fn({ settingsV2: { newValue: next } }, "local"));
+            return { ok: true, settings: next, saved: true, applied: true };
+          }
+          if (message.type === "setPlatformEnabled") {
+            const next = JSON.parse(JSON.stringify(globalThis.__settings));
+            if (message.enabled) {
+              const restore = next.platforms[message.platform].lastEnabledMode || "selected";
+              next.platforms[message.platform].mode = restore === "off" ? "selected" : restore;
+            } else {
+              if (next.platforms[message.platform].mode !== "off") next.platforms[message.platform].lastEnabledMode = next.platforms[message.platform].mode;
+              next.platforms[message.platform].mode = "off";
+            }
+            globalThis.__settings = next;
+            listeners.forEach((fn) => fn({ settingsV2: { newValue: next } }, "local"));
+            return { ok: true, settings: next, saved: true, applied: true };
+          }
+          if (message.type === "setSection") {
+            const next = JSON.parse(JSON.stringify(globalThis.__settings));
+            next.platforms[message.platform].sections[message.section] = Boolean(message.blocked);
+            globalThis.__settings = next;
+            listeners.forEach((fn) => fn({ settingsV2: { newValue: next } }, "local"));
+            return { ok: true, settings: next, saved: true, applied: true };
+          }
+          if (message.type === "openOptions") return { ok: true };
+          if (message.type === "resetStats") return { ok: true, stats: { todayCount: 0, totalCount: 0 } };
+          return { ok: true, settings: globalThis.__settings };
+        },
+        openOptionsPage() {},
+        getPlatformInfo: async () => ({ os: "win" }),
+        getManifest: () => ({ version: "2.3.1" })
+      },
       permissions: { contains: async () => true, request: async () => true, remove: async () => true }
     };
   }, settings);
@@ -81,7 +147,7 @@ try {
   const xRow = options.locator("details.optional-site").filter({ has: xMode });
   await xRow.locator("summary").click();
   assert.deepEqual(await xMode.locator("option").evaluateAll((nodes) => nodes.map((node) => node.value)), ["selected", "all", "off"]);
-  assert.equal(await xRow.locator('input[type="checkbox"]').count(), 6);
+  assert.equal(await xRow.locator('input[type="checkbox"]').count(), 8, "X offers six sections plus two surfaces");
   assert.equal(await xRow.getByText("Blocked page links", { exact: false }).count(), 1);
   for (const width of [1280, 390]) {
     await options.setViewportSize({ width, height: 900 });
@@ -125,10 +191,11 @@ try {
   await redditRow.locator("summary").click();
   assert.deepEqual(await redditMode.locator("option").evaluateAll((nodes) => nodes.map((node) => node.value)), ["selected", "all", "off"]);
   await redditMode.selectOption("selected");
-  assert.equal(await redditRow.locator('input[type="checkbox"]').count(), 5);
+  assert.equal(await redditRow.locator('input[type="checkbox"]').count(), 6);
   assert.equal(await redditRow.locator("label").filter({ hasText: "Block Home feed" }).count(), 1);
   assert.equal(await redditRow.locator("label").filter({ hasText: "Block Popular, News, and Explore" }).count(), 1);
   assert.equal(await redditRow.locator("label").filter({ hasText: "Block Chat" }).count(), 1);
+  assert.equal(await redditRow.locator("label").filter({ hasText: "Block Message inbox" }).count(), 1);
   assert.equal(await redditRow.locator("label").filter({ hasText: "Block Notifications" }).count(), 1);
   assert.equal(await redditRow.locator("label").filter({ hasText: "Hide sidebar distractions" }).count(), 1);
   assert.equal(await redditRow.getByText("Short video communities", { exact: true }).count(), 0);
@@ -140,9 +207,9 @@ try {
   }
   const optionalAudits = [
     { id: "snapchat", options: ["shortform", "selected", "all", "off"], labels: ["Block Spotlight", "Block Stories"], removed: [] },
-    { id: "twitch", options: ["shortform", "selected", "all", "off"], labels: ["Block recommended Home", "Block Browse", "Block Clips", "Block Videos (VODs)"], removed: ["Videos"] },
+    { id: "twitch", options: ["shortform", "selected", "all", "off"], labels: ["Block recommended Home", "Block Browse", "Block Clips", "Block Videos (VODs)", "Block Drops"], removed: ["Videos"] },
     { id: "pinterest", options: ["selected", "all", "off"], labels: ["Block Home feed", "Block Explore", "Block Search"], removed: ["Watch", "Pins"] },
-    { id: "linkedin", options: ["selected", "all", "off"], labels: ["Block Feed", "Block Videos", "Block Notifications"], removed: ["Video", "Jobs"] },
+    { id: "linkedin", options: ["selected", "all", "off"], labels: ["Block Feed", "Block Videos", "Block Notifications", "Block Messaging", "Block My Network"], removed: ["Video", "Jobs"] },
     { id: "threads", options: ["selected", "all", "off"], labels: ["Block Home feed", "Block Activity"], removed: ["Search", "Media"] }
   ];
   for (const audit of optionalAudits) {

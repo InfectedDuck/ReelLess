@@ -1,4 +1,4 @@
-# ReelLess v2.3.0 Manual Release Matrix
+# ReelLess v2.3.1 Manual Release Matrix
 
 Automated fixtures and Chrome-for-Testing smoke checks cover the repeatable core paths. Complete this matrix with real logged-in and logged-out desktop accounts before Web Store submission.
 
@@ -21,9 +21,11 @@ Expected specifics:
 - YouTube Short links and channel Shorts tabs disappear; direct `/shorts` and `/shorts/{id}` visits show the focus screen and never play; ordinary videos and subscriptions remain.
 - Instagram Reels links disappear; direct Reels return to the feed; messages and ordinary posts remain in the default mode.
 - Facebook Reels and feed videos disappear; opening a video stops in place with the video focus screen; direct Watch visits stop in place. Messages and ordinary text/photo posts remain. Uncheck Watch under Advanced → Facebook → Selected sections to allow videos again.
+- On Facebook Home, check several consecutive video posts (including posts with nested comments) while the address stays unchanged. Scroll to load more, open and close a viewer, and scroll back to reused posts: every player must remain hidden and silent. Test with both Reels and Watch selected and entry points Hidden; verify pausing protection restores players. The Chrome smoke test covers several URL-free players and a reused player, but release validation still needs a signed-in live feed.
 - With Instagram/Facebook Reels set to "Visible, can't be opened", scroll down and activate a Reel link with a click or Enter. The viewer must not open, the document must not reload, and the scroll position must stay unchanged. Repeat from a message thread; opening a blocked URL directly still uses the normal redirect.
 - Instagram Home: with Reels hidden, scroll through several consecutive video posts. Each becomes a short "Reel hidden" placeholder; photos and the next batch of posts must still appear, without repeated loading or scroll jumps. Switch to "Visible, can't be opened", then back to Hidden, and check Direct and profiles. Run `npm run test:instagram-browser` for the local geometry/recycling regression fixture; a logged-in feed is still required for release validation.
 - TikTok feed/video navigation shows the ReelLess focus screen; allowed Advanced utility sections remain reachable.
+- On each core card, tick a full-page option (e.g. Facebook → Block Home feed): the home page shows the focus screen with links to allowed pages, short-form stays blocked, and the matching Advanced checkbox follows. Unticking restores the page and collapses the mode back to Short-form only.
 - Counts rise once for a deliberate blocked attempt, not for hidden cards or repeated DOM mutations.
 
 ## Entry points in feeds
@@ -55,7 +57,7 @@ Expected specifics:
 - Deny an Advanced platform request: its mode must remain Off and no extension error should appear.
 - Grant an Advanced site, confirm its dynamic guard, disable it, and confirm the access and guard are removed.
 - Add a custom domain/path, deny and then grant access, verify block-only behavior, then remove it. A granted entry must also stop in place with its own focus screen, hide its links, and refuse clicks; a bare domain (no path) blocks the whole site.
-- Update profiles from earlier schemas and confirm schedule, supported platform selections, custom entries, and Ultimate Lock snapshots are preserved in v10 `settingsV2`; retired controls must disappear and every platform must default to hidden entry points.
+- Update profiles from earlier schemas and confirm schedule, supported platform selections, custom entries, and Ultimate Lock snapshots are preserved in v11 `settingsV2` (including remembered modes); retired controls must disappear and every platform must default to hidden entry points.
 
 ## Release gate
 

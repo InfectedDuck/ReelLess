@@ -2,7 +2,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import assert from "node:assert/strict";
 import {
-  toFirefoxManifest, GECKO_ID, FIREFOX_MIN_VERSION, FIREFOX_ANDROID_MIN_VERSION,
+  toFirefoxManifest, GECKO_ID, FIREFOX_MIN_VERSION,
   FIREFOX_NAME, FIREFOX_NAME_LIMIT, SHARED_FILES
 } from "./firefox-manifest.mjs";
 
@@ -53,17 +53,15 @@ assert.equal(firefox.options_page, undefined, "the Chrome-only options_page key 
 assert.equal(firefox.minimum_chrome_version, undefined, "the Chrome version hint must not ship to AMO");
 assert.equal(firefox.browser_specific_settings.gecko.id, GECKO_ID);
 assert.equal(firefox.browser_specific_settings.gecko.strict_min_version, FIREFOX_MIN_VERSION);
-assert.equal(firefox.browser_specific_settings.gecko_android.strict_min_version, FIREFOX_ANDROID_MIN_VERSION,
-  "the package must opt in to Firefox for Android");
+assert.equal(firefox.browser_specific_settings.gecko_android, undefined,
+  "Firefox for Android is excluded from this release: no gecko_android opt-in");
 
 // AMO has required a data-collection declaration of every new submission since 2025-11-03, and
-// the key is only read from Firefox 140 / Android 142, so the floors must not sit below that.
+// the key is only read from Firefox 140, so the floor must not sit below that.
 assert.deepEqual(firefox.browser_specific_settings.gecko.data_collection_permissions, { required: ["none"] },
   "the package must declare that it collects nothing");
 const [minMajor] = FIREFOX_MIN_VERSION.split(".").map(Number);
-const [androidMinMajor] = FIREFOX_ANDROID_MIN_VERSION.split(".").map(Number);
 assert.ok(minMajor >= 140, "data_collection_permissions is unsupported below Firefox 140");
-assert.ok(androidMinMajor >= 142, "data_collection_permissions is unsupported below Firefox for Android 142");
 
 // AMO caps the manifest name at 45 characters; the Chrome name is built for a 75-character field.
 assert.equal(firefox.name, FIREFOX_NAME);
@@ -71,6 +69,8 @@ assert.ok(firefox.name.length <= FIREFOX_NAME_LIMIT, `the Firefox name is ${fire
 assert.ok(firefox.name.startsWith("ReelLess"), "the Firefox name must keep the brand");
 assert.ok(chromeManifest.name.length > FIREFOX_NAME_LIMIT,
   "if the Chrome name ever fits AMO's limit, drop the Firefox-only name and ship one name everywhere");
+assert.ok(!("FIREFOX_ANDROID_MIN_VERSION" in (await import("./firefox-manifest.mjs"))),
+  "the Android floor must not exist while Android is excluded");
 
 // Everything else that defines the product must survive the transform untouched.
 assert.equal(firefox.version, chromeManifest.version);

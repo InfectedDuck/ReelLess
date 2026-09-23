@@ -13,13 +13,13 @@ Track only Web Store users, installs/uninstalls, ratings, reviews, and support r
 
 - Recruit 10–20 students, remote workers, and digital-minimalism testers.
 - Cover logged-in/logged-out layouts, mobile hostnames, direct links, back/forward, multiple tabs, updates, and restricted site access.
-- Include a long Instagram feed scroll and a Reel shared in a Direct conversation, the two 2.3.0 fixes most likely to regress with a site change.
+- Include a long Instagram feed scroll and a Reel shared in a Direct conversation, the two 2.3.1 fixes most likely to regress with a site change.
 - Record reports with browser version, platform, URL shape (not a private URL), login state, expected behavior, and screenshot.
 - Fix every core failure before submission.
 
 ## Days 15–30 — launch to 75 users
 
-- Publish the Web Store listing, GitHub `v2.3.0` release, and GitHub Pages privacy/support site.
+- Publish the Web Store listing, GitHub `v2.3.1` release, and GitHub Pages privacy/support site.
 - Submit `dist/reelless-firefox.zip` to addons.mozilla.org and `dist/reels-blocker.zip` to Microsoft Edge Add-ons under the same version, once the Chrome listing is approved.
 - Publish one accurate 30-second before/after demo using the real extension.
 - Use deferred Web Store publishing so the listing, site, and release go live together.

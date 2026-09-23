@@ -33,13 +33,13 @@ const migrated = R.normalizeSettings({
   },
   customEntries: ["example.com/reels", "https://www.example.com/reels/", "invalid"]
 });
-assert.equal(migrated.schemaVersion, 10);
+assert.equal(migrated.schemaVersion, 11);
 assert.equal(migrated.schedulePreset, "custom");
 assert.equal(migrated.customStart, "08:10");
 assert.equal(migrated.platforms.youtube.mode, "off");
 assert.equal(migrated.platforms.reddit.mode, "selected");
 assert.equal(migrated.platforms.reddit.sections.discovery, true);
-assert.deepEqual(migrated.customEntries, ["example.com/reels"]);
+assert.deepEqual(migrated.customEntries, ["example.com/reels", "www.example.com/reels"]);
 assert.equal(migrated.appearance, "dark", "existing settings receive the dark appearance default");
 assert.equal(R.normalizeSettings({ appearance: "light" }).appearance, "light");
 assert.equal(R.normalizeSettings({ appearance: "system" }).appearance, "system");
@@ -53,9 +53,9 @@ const v4DirectSetting = R.normalizeSettings({
     facebook: { mode: "selected", sections: { reels: false, watch: true, marketplace: false, direct_videos: true } }
   }
 });
-assert.equal(v4DirectSetting.schemaVersion, 10);
+assert.equal(v4DirectSetting.schemaVersion, 11);
 assert.deepEqual(v4DirectSetting.platforms.instagram.sections, { reels: false, home: false, explore: true, stories: false });
-assert.deepEqual(v4DirectSetting.platforms.facebook.sections, { reels: false, watch: true, home: false, groups: false, stories: false, marketplace: false });
+assert.deepEqual(v4DirectSetting.platforms.facebook.sections, { reels: false, watch: true, home: false, groups: false, stories: false, marketplace: false, events: false });
 assert.equal(Object.hasOwn(v4DirectSetting.platforms.instagram.sections, "direct_videos"), false);
 assert.equal(typeof R.shouldBlockDirectVideos, "undefined", "The retired Direct-message behavior must not remain public");
 
@@ -68,7 +68,7 @@ const v5EntryPoints = R.normalizeSettings({
     facebook: { mode: "shortform", entryPoints: "unexpected", sections: { reels: true } }
   }
 });
-assert.equal(v5EntryPoints.schemaVersion, 10);
+assert.equal(v5EntryPoints.schemaVersion, 11);
 assert.equal(v5EntryPoints.platforms.youtube.entryPoints, "hide", "existing settings keep hiding entry points");
 assert.equal(v5EntryPoints.platforms.instagram.entryPoints, "keep");
 assert.equal(v5EntryPoints.platforms.facebook.entryPoints, "hide", "unknown values fall back to hiding");
@@ -84,7 +84,7 @@ assert.equal(R.shouldBlockUrl(v5EntryPoints, "https://www.youtube.com/shorts/abc
 // Optional YouTube surfaces are a separate axis from sections: they quieten parts of a page that
 // stays reachable, and they never affect what shouldBlockUrl decides.
 const youtube = R.platformById("youtube");
-assert.deepEqual(youtube.surfaces.map((s) => s.id), ["homeFeed", "sidebar", "comments", "endScreen"]);
+assert.deepEqual(youtube.surfaces.map((s) => s.id), ["homeFeed", "sidebar", "comments", "endScreen", "games"]);
 assert.ok(youtube.surfaces.every((s) => defaults.platforms.youtube.surfaces[s.id] === false), "every surface must start off");
 assert.deepEqual(R.activeSurfaces(defaults, "youtube"), [], "nothing is quietened until asked for");
 
@@ -101,9 +101,9 @@ assert.deepEqual(R.activeSurfaces(quietPaused, "youtube"), [], "paused protectio
 
 // v6 settings gain the surfaces map without losing anything, and every surface arrives off.
 const v6 = R.normalizeSettings({ schemaVersion: 6, platforms: { youtube: { mode: "shortform", entryPoints: "keep", sections: { shorts: true } } } });
-assert.equal(v6.schemaVersion, 10);
+assert.equal(v6.schemaVersion, 11);
 assert.equal(v6.platforms.youtube.entryPoints, "keep", "the entry-point choice survives the migration");
-assert.deepEqual(v6.platforms.youtube.surfaces, { homeFeed: false, sidebar: false, comments: false, endScreen: false });
+assert.deepEqual(v6.platforms.youtube.surfaces, { homeFeed: false, sidebar: false, comments: false, endScreen: false, games: false });
 
 // Ultimate Lock forces always-on protection and restores its saved platform snapshot if settings are tampered with.
 const ultimate = R.createUltimateSettings(R.normalizeSettings({
@@ -175,10 +175,10 @@ for (const url of preserved) {
 }
 
 // X v8: remove video URL guesses, migrate Explore without broadening restrictions, including locks.
-assert.deepEqual(defaults.platforms.x, { mode: "off", entryPoints: "hide", sections: { home: false, explore: false, notifications: false, messages: false }, surfaces: { xExplore: false, xSidebar: false } });
+assert.deepEqual(defaults.platforms.x, { mode: "off", lastEnabledMode: "off", entryPoints: "hide", sections: { home: false, explore: false, notifications: false, messages: false, communities: false, grok: false }, surfaces: { xExplore: false, xSidebar: false } });
 const oldX = { mode: "selected", entryPoints: "keep", sections: { home: true, explore: true, video: true } };
 const migratedX = R.normalizeSettings({ schemaVersion: 7, platforms: { x: oldX } });
-assert.deepEqual(migratedX.platforms.x, { mode: "selected", entryPoints: "keep", sections: { home: true, explore: false, notifications: false, messages: false }, surfaces: { xExplore: true, xSidebar: false } });
+assert.deepEqual(migratedX.platforms.x, { mode: "selected", lastEnabledMode: "selected", entryPoints: "keep", sections: { home: true, explore: false, notifications: false, messages: false, communities: false, grok: false }, surfaces: { xExplore: true, xSidebar: false } });
 assert.deepEqual(R.normalizeSettings(migratedX), migratedX, "migration is idempotent");
 const lockedX = R.normalizeSettings({ schemaVersion: 7, platforms: { x: { mode: "off" } }, ultimate: { enabled: true, profile: "keep_current", lockedPlatforms: { x: oldX } } });
 assert.deepEqual(lockedX.platforms.x, migratedX.platforms.x);
@@ -194,7 +194,7 @@ assert.equal(videoOnly.platforms.x.sections.home, false);
 assert.deepEqual(videoOnly.platforms.x.surfaces, { xExplore: false, xSidebar: false });
 for (const host of ["x.com", "www.x.com", "twitter.com", "mobile.twitter.com"]) {
   for (const path of ["/", "/home", "/home/"]) assert.equal(R.shouldBlockUrl(migratedX, `https://${host}${path}`).blocked, true);
-  for (const path of ["/explore", "/explore/tabs/trending", "/search?q=work", "/notifications", "/messages", "/friend", "/friend/status/123", "/i/status/123", "/video/123", "/i/bookmarks", "/i/lists/123", "/compose/post"]) {
+  for (const path of ["/explore", "/explore/tabs/trending", "/search?q=work", "/notifications", "/messages", "/i/chat", "/i/chat/abc123", "/friend", "/friend/status/123", "/i/status/123", "/video/123", "/i/bookmarks", "/i/lists/123", "/compose/post"]) {
     assert.equal(R.shouldBlockUrl(migratedX, `https://${host}${path}`).blocked, false, `${path} must remain available`);
   }
 }
@@ -207,22 +207,22 @@ for (const path of ["/explore", "/explore/", "/explore/tabs/trending", "/explore
   assert.equal(decision.blocked, true, `${path} is the Explore discovery page`);
   assert.equal(decision.section.id, "explore");
 }
-for (const path of ["/", "/home", "/search?q=work", "/notifications", "/messages", "/friend", "/friend/status/123", "/i/bookmarks"]) {
+for (const path of ["/", "/home", "/search?q=work", "/notifications", "/messages", "/i/chat", "/friend", "/friend/status/123", "/i/bookmarks"]) {
   assert.equal(R.shouldBlockUrl(explorePage, `https://x.com${path}`).blocked, false, `${path} stays available while only Explore is blocked`);
 }
 assert.equal(R.sectionBlocked(explorePage, "x", "explore"), true);
 assert.equal(R.sectionBlocked(migratedX, "x", "explore"), false, "legacy recommendation hiding must not become page blocking");
 
 // Reddit v9 replaces two guessed video-community URLs with intentional focus controls.
-assert.deepEqual(defaults.platforms.reddit, { mode: "off", entryPoints: "hide", sections: { home: false, discovery: false, chat: false, notifications: false }, surfaces: { redditSidebar: false } });
+assert.deepEqual(defaults.platforms.reddit, { mode: "off", lastEnabledMode: "off", entryPoints: "hide", sections: { home: false, discovery: false, chat: false, notifications: false, inbox: false }, surfaces: { redditSidebar: false } });
 const oldReddit = { mode: "selected", entryPoints: "keep", sections: { popular: true, all: false, shorts: true } };
 const migratedReddit = R.normalizeSettings({ schemaVersion: 8, platforms: { reddit: oldReddit } });
-assert.deepEqual(migratedReddit.platforms.reddit, { mode: "selected", entryPoints: "keep", sections: { home: false, discovery: true, chat: false, notifications: false }, surfaces: { redditSidebar: false } });
+assert.deepEqual(migratedReddit.platforms.reddit, { mode: "selected", lastEnabledMode: "selected", entryPoints: "keep", sections: { home: false, discovery: true, chat: false, notifications: false, inbox: false }, surfaces: { redditSidebar: false } });
 assert.deepEqual(R.normalizeSettings(migratedReddit), migratedReddit, "Reddit migration is idempotent");
 for (const value of ["shortform", { mode: "shortform", sections: { shorts: true } }]) {
   const retired = R.normalizeSettings({ schemaVersion: 8, platforms: { reddit: value } });
   assert.equal(retired.platforms.reddit.mode, "off");
-  assert.deepEqual(retired.platforms.reddit.sections, { home: false, discovery: false, chat: false, notifications: false });
+  assert.deepEqual(retired.platforms.reddit.sections, { home: false, discovery: false, chat: false, notifications: false, inbox: false });
 }
 const redditFocus = R.normalizeSettings({ platforms: { reddit: { mode: "selected", sections: { home: true, discovery: true }, surfaces: { redditSidebar: true } } } });
 for (const url of ["https://www.reddit.com/", "https://www.reddit.com/?feed=home", "https://reddit.com/?feed=following"]) {
@@ -240,17 +240,17 @@ assert.deepEqual(R.activeSurfaces(redditFocus, "reddit"), ["redditSidebar"]);
 
 // Checklist sections stay opt-in: every section beyond the short-form defaults arrives off,
 // each with a description naming the tab it removes so the checklist explains itself.
-assert.deepEqual(R.platformById("youtube").sections.map((section) => section.id), ["shorts", "home", "trending"]);
+assert.deepEqual(R.platformById("youtube").sections.map((section) => section.id), ["shorts", "home", "trending", "subscriptions", "gaming"]);
 assert.deepEqual(R.platformById("instagram").sections.map((section) => section.id), ["reels", "home", "explore", "stories"]);
-assert.deepEqual(R.platformById("facebook").sections.map((section) => section.id), ["reels", "watch", "home", "groups", "stories", "marketplace"]);
+assert.deepEqual(R.platformById("facebook").sections.map((section) => section.id), ["reels", "watch", "home", "groups", "stories", "marketplace", "events"]);
 assert.deepEqual(R.platformById("tiktok").sections.map((section) => section.id), ["feed", "videos", "live", "messages", "upload", "settings"]);
-assert.deepEqual(R.platformById("x").sections.map((section) => section.id), ["home", "explore", "notifications", "messages"]);
+assert.deepEqual(R.platformById("x").sections.map((section) => section.id), ["home", "explore", "notifications", "messages", "communities", "grok"]);
 assert.deepEqual(R.platformById("snapchat").sections.map((section) => section.id), ["spotlight", "stories"]);
-assert.deepEqual(R.platformById("twitch").sections.map((section) => section.id), ["home", "directory", "clips", "videos"]);
+assert.deepEqual(R.platformById("twitch").sections.map((section) => section.id), ["home", "directory", "clips", "videos", "drops"]);
 assert.deepEqual(R.platformById("pinterest").sections.map((section) => section.id), ["home", "explore", "search"]);
-assert.deepEqual(R.platformById("linkedin").sections.map((section) => section.id), ["feed", "videos", "notifications"]);
+assert.deepEqual(R.platformById("linkedin").sections.map((section) => section.id), ["feed", "videos", "notifications", "messaging", "network"]);
 assert.deepEqual(R.platformById("threads").sections.map((section) => section.id), ["feed", "activity"]);
-assert.deepEqual(R.platformById("reddit").sections.map((section) => section.id), ["home", "discovery", "chat", "notifications"]);
+assert.deepEqual(R.platformById("reddit").sections.map((section) => section.id), ["home", "discovery", "chat", "inbox", "notifications"]);
 for (const platform of R.PLATFORMS) {
   for (const section of platform.sections) {
     assert.equal(typeof section.label, "string", `${platform.id}.${section.id} needs a checklist label`);
@@ -270,10 +270,10 @@ const oldOptional = R.normalizeSettings({ schemaVersion: 9, platforms: {
   threads: { mode: "selected", sections: { feed: true, search: true, media: true } }
 } });
 assert.deepEqual(oldOptional.platforms.snapchat.sections, { spotlight: true, stories: true });
-assert.deepEqual(oldOptional.platforms.twitch.sections, { home: false, directory: true, clips: true, videos: true }, "the retired Videos choice carries onto channel video archives");
+assert.deepEqual(oldOptional.platforms.twitch.sections, { home: false, directory: true, clips: true, videos: true, drops: false }, "the retired Videos choice carries onto channel video archives");
 assert.deepEqual(oldOptional.platforms.pinterest.sections, { home: false, explore: true, search: false });
 assert.equal(oldOptional.platforms.pinterest.mode, "selected");
-assert.deepEqual(oldOptional.platforms.linkedin.sections, { feed: true, videos: false, notifications: false });
+assert.deepEqual(oldOptional.platforms.linkedin.sections, { feed: true, videos: false, notifications: false, messaging: false, network: false });
 assert.deepEqual(oldOptional.platforms.threads.sections, { feed: true, activity: false });
 const lockedOptional = R.normalizeSettings({ schemaVersion: 9, ultimate: {
   enabled: true, profile: "keep_current", lockedPlatforms: {
@@ -331,18 +331,27 @@ for (const [id, blockedUrls, allowedUrls] of optionalRoutes) {
 const newSectionRoutes = [
   ["youtube", "home", ["https://www.youtube.com/"], ["https://www.youtube.com/watch?v=abc", "https://www.youtube.com/shorts/abc", "https://www.youtube.com/feed/trending"]],
   ["youtube", "trending", ["https://www.youtube.com/feed/trending", "https://www.youtube.com/trending"], ["https://www.youtube.com/", "https://www.youtube.com/watch?v=abc"]],
+  ["youtube", "subscriptions", ["https://www.youtube.com/feed/subscriptions"], ["https://www.youtube.com/", "https://www.youtube.com/watch?v=abc", "https://www.youtube.com/feed/trending"]],
+  ["youtube", "gaming", ["https://www.youtube.com/gaming", "https://www.youtube.com/gaming/game/123"], ["https://www.youtube.com/", "https://www.youtube.com/watch?v=abc"]],
   ["instagram", "home", ["https://www.instagram.com/"], ["https://www.instagram.com/nasa/", "https://www.instagram.com/p/photo123/", "https://www.instagram.com/reels/abc"]],
   ["facebook", "home", ["https://www.facebook.com/"], ["https://www.facebook.com/nasa/", "https://www.facebook.com/reel/abc", "https://www.facebook.com/groups/123/"]],
   ["facebook", "groups", ["https://www.facebook.com/groups/", "https://www.facebook.com/groups/123/"], ["https://www.facebook.com/", "https://www.facebook.com/marketplace/"]],
+  ["facebook", "events", ["https://www.facebook.com/events/", "https://www.facebook.com/events/123/"], ["https://www.facebook.com/", "https://www.facebook.com/groups/123/"]],
   ["tiktok", "live", ["https://www.tiktok.com/live", "https://www.tiktok.com/live/tag/x"], ["https://www.tiktok.com/messages", "https://www.tiktok.com/@user"]],
-  ["x", "notifications", ["https://x.com/notifications"], ["https://x.com/home", "https://x.com/explore", "https://x.com/messages"]],
-  ["x", "messages", ["https://x.com/messages", "https://twitter.com/messages/inbox"], ["https://x.com/home", "https://x.com/notifications"]],
+  ["x", "notifications", ["https://x.com/notifications"], ["https://x.com/home", "https://x.com/explore", "https://x.com/messages", "https://x.com/i/chat"]],
+  ["x", "messages", ["https://x.com/messages", "https://twitter.com/messages/inbox", "https://x.com/i/chat", "https://x.com/i/chat/abc123"], ["https://x.com/home", "https://x.com/notifications"]],
+  ["x", "communities", ["https://x.com/i/communities", "https://x.com/i/communities/123"], ["https://x.com/home", "https://x.com/explore"]],
+  ["x", "grok", ["https://x.com/i/grok"], ["https://x.com/home", "https://x.com/notifications"]],
   ["reddit", "chat", ["https://www.reddit.com/chat"], ["https://www.reddit.com/", "https://www.reddit.com/r/codex/comments/abc/post/"]],
   ["reddit", "notifications", ["https://www.reddit.com/notifications"], ["https://www.reddit.com/", "https://www.reddit.com/chat"]],
+  ["reddit", "inbox", ["https://www.reddit.com/message/inbox", "https://old.reddit.com/message/inbox"], ["https://www.reddit.com/", "https://www.reddit.com/chat", "https://www.reddit.com/r/codex/comments/abc/post/"]],
   ["twitch", "videos", ["https://www.twitch.tv/somechannel/videos", "https://www.twitch.tv/somechannel/videos/abc"], ["https://www.twitch.tv/somechannel", "https://www.twitch.tv/somechannel/clips", "https://clips.twitch.tv/FancySlug", "https://dashboard.twitch.tv/"]],
+  ["twitch", "drops", ["https://www.twitch.tv/drops", "https://www.twitch.tv/drops/campaigns"], ["https://www.twitch.tv/", "https://www.twitch.tv/directory", "https://www.twitch.tv/somechannel"]],
   ["pinterest", "search", ["https://www.pinterest.com/search/pins/?q=desk"], ["https://www.pinterest.com/pin/123/", "https://www.pinterest.com/", "https://www.pinterest.com/user/board/"]],
   ["linkedin", "videos", ["https://www.linkedin.com/video/123"], ["https://www.linkedin.com/feed/", "https://www.linkedin.com/jobs/"]],
   ["linkedin", "notifications", ["https://www.linkedin.com/notifications/"], ["https://www.linkedin.com/feed/", "https://www.linkedin.com/messaging/"]],
+  ["linkedin", "messaging", ["https://www.linkedin.com/messaging/", "https://www.linkedin.com/messaging/thread/123"], ["https://www.linkedin.com/feed/", "https://www.linkedin.com/jobs/"]],
+  ["linkedin", "network", ["https://www.linkedin.com/mynetwork/", "https://www.linkedin.com/mynetwork/invites"], ["https://www.linkedin.com/feed/", "https://www.linkedin.com/messaging/"]],
   ["threads", "activity", ["https://www.threads.com/activity"], ["https://www.threads.com/", "https://www.threads.com/search"]]
 ];
 for (const [platformId, sectionId, blockedUrls, allowedUrls] of newSectionRoutes) {
@@ -363,21 +372,45 @@ for (const [platformId, sectionId, blockedUrls, allowedUrls] of newSectionRoutes
   }
 }
 
-// Personal custom boundaries match their host (ignoring www.) with an optional path prefix,
-// never swallow platform hosts, and honor the global schedule like platforms do.
+// Personal custom boundaries match their exact host (www is distinct) with an optional
+// case-sensitive path prefix, never swallow platform hosts, and honor the global schedule.
 assert.equal(R.matchCustomEntry("example.com/reels", "https://example.com/reels/123"), true);
-assert.equal(R.matchCustomEntry("example.com/reels", "https://www.example.com/reels/"), true);
+assert.equal(R.matchCustomEntry("example.com/reels", "https://www.example.com/reels/"), false, "www is a distinct host");
+assert.equal(R.matchCustomEntry("www.example.com/reels", "https://www.example.com/reels/"), true);
 assert.equal(R.matchCustomEntry("example.com", "https://example.com/anything/here"), true);
 assert.equal(R.matchCustomEntry("example.com/reels", "https://example.com/home"), false);
 assert.equal(R.matchCustomEntry("example.com/reels", "https://other.com/reels/123"), false);
 assert.equal(R.matchCustomEntry("example.com/reels", "https://example.com/reelsy/123"), false, "a path prefix must end at a boundary");
 assert.equal(R.matchCustomEntry("m.example.com/feed", "https://m.example.com/feed/1"), true);
 assert.equal(R.matchCustomEntry("not a url", "https://example.com/"), false);
+// Path case is preserved: /Private and /private are different boundaries.
+assert.equal(R.validateEntry("www.example.com/Private").value, "www.example.com/Private");
+assert.equal(R.matchCustomEntry("example.com/Private", "https://example.com/Private/1"), true);
+assert.equal(R.matchCustomEntry("example.com/Private", "https://example.com/private/1"), false, "paths are case-sensitive");
+assert.equal(R.validateEntry("http://example.com/reels").ok, false, "explicit http URLs are rejected");
+assert.equal(R.validateEntry("https://user:pass@example.com/").ok, false, "credentials are rejected");
+assert.equal(R.validateEntry("example.com:8080/reels").ok, false, "ports are rejected");
+assert.equal(R.validateEntry("example.com/reels?x=1").ok, false, "queries are rejected");
+assert.equal(R.validateEntry("example.com/reels#x").ok, false, "fragments are rejected");
+assert.equal(R.validateEntry("*.example.com").ok, false, "wildcards are rejected");
 assert.equal(R.customEntryForUrl(["example.com/reels", "another.test/x"], "https://another.test/x/1"), "another.test/x");
 assert.equal(R.customEntryForUrl(["example.com/reels"], "https://example.com/home"), null);
-assert.equal(R.customScriptPattern("example.com/reels"), "https://example.com/reels*");
+assert.equal(R.customScriptPattern("example.com/reels"), "https://example.com/*", "guards register host-wide so allowed pages detect SPA navigation");
 assert.equal(R.customScriptPattern("example.com"), "https://example.com/*");
-assert.ok(R.customScriptId("example.com/reels") !== R.customScriptId("example.com/other"), "registration ids stay distinct");
+assert.equal(R.customScriptId("example.com/reels"), R.customScriptId("example.com/other"), "entries sharing one host share one guard");
+assert.ok(R.customScriptId("example.com/reels") !== R.customScriptId("other.com/reels"), "different hosts stay distinct");
+// Remembered modes: Off restores the last enabled mode instead of resetting.
+const offOn = R.setPlatformEnabled(R.normalizeSettings({ platforms: { youtube: { mode: "all" } } }), "youtube", false);
+assert.equal(offOn.platforms.youtube.mode, "off");
+assert.equal(offOn.platforms.youtube.lastEnabledMode, "all");
+const backOn = R.setPlatformEnabled(offOn, "youtube", true);
+assert.equal(backOn.platforms.youtube.mode, "all", "switching back on restores the remembered mode");
+// Effective status distinguishes off, paused, schedule, empty, and active.
+assert.equal(R.getEffectiveStatus(R.normalizeSettings({ protectionEnabled: false }), at(2026, 8, 31, 12)).key, "off");
+assert.equal(R.getEffectiveStatus(R.normalizeSettings({ pausedUntil: new Date(Date.now() + 60000).toISOString() })).key, "paused");
+assert.equal(R.getEffectiveStatus(R.normalizeSettings({ schedulePreset: "always" }), at(2026, 8, 31, 12)).key, "active");
+// Review URLs are never derived from runtime ids; unknown listings hide the action.
+assert.equal(R.getReviewUrl("chrome"), null);
 const customOnly = R.normalizeSettings({ customEntries: ["example.com/reels"] });
 assert.equal(R.shouldBlockCustomUrl(customOnly, "https://example.com/reels/123").blocked, true);
 assert.equal(R.shouldBlockCustomUrl(customOnly, "https://example.com/home").blocked, false);
@@ -457,6 +490,32 @@ assert.equal(new RegExp(rules[0].condition.regexFilter).test("https://example.co
 assert.equal(new RegExp(rules[0].condition.regexFilter).test("https://www.example.com/reels/123"), false);
 assert.equal(new RegExp(rules[0].condition.regexFilter).test("http://example.com/reels/123"), false);
 assert.equal(R.permissionPatternForEntry("example.com/reels"), "https://example.com/*");
+
+// Full-page options expose addictive pages (home feeds, Explore, Groups, ...) as one-click
+// blocks backed by the existing Selected-sections machinery.
+assert.deepEqual(R.fullPageSections("facebook").map((s) => s.id), ["home", "groups", "stories", "marketplace", "events"]);
+assert.deepEqual(R.fullPageSections("youtube").map((s) => s.id), ["home", "trending", "subscriptions", "gaming"]);
+assert.deepEqual(R.fullPageSections("instagram").map((s) => s.id), ["home", "explore", "stories"]);
+assert.deepEqual(R.fullPageSections("tiktok").map((s) => s.id), ["live"]);
+assert.deepEqual(R.fullPageSections("nope"), []);
+let full = R.setSectionBlocked(defaults, "facebook", "home", true);
+assert.equal(full.platforms.facebook.mode, "selected", "ticking a page switches to Selected sections");
+assert.equal(full.platforms.facebook.sections.home, true, "the page is blocked");
+assert.equal(full.platforms.facebook.sections.reels, true, "short-form defaults are preserved");
+assert.equal(full.platforms.facebook.sections.watch, true);
+assert.equal(R.shouldBlockUrl(full, "https://www.facebook.com/").blocked, true, "the home feed is fully blocked");
+assert.equal(R.shouldBlockUrl(full, "https://www.facebook.com/reel/abc").blocked, true, "reels stay blocked");
+full = R.setSectionBlocked(full, "facebook", "home", false);
+assert.equal(full.platforms.facebook.mode, "shortform", "unticking the last extra page collapses back to Short-form only");
+assert.equal(R.shouldBlockUrl(full, "https://www.facebook.com/").blocked, false, "the home feed is reachable again");
+assert.equal(R.shouldBlockUrl(full, "https://www.facebook.com/reel/abc").blocked, true);
+const untouched = R.setSectionBlocked(defaults, "facebook", "nope", true);
+assert.deepEqual(untouched, defaults, "unknown sections leave settings untouched");
+assert.deepEqual(R.setSectionBlocked(defaults, "nope", "home", true), defaults, "unknown platforms leave settings untouched");
+const fromOff = R.setSectionBlocked(R.normalizeSettings({ platforms: { facebook: "off" } }), "facebook", "home", true);
+assert.equal(fromOff.platforms.facebook.mode, "selected");
+assert.equal(fromOff.platforms.facebook.sections.home, true);
+assert.equal(R.shouldBlockUrl(fromOff, "https://www.facebook.com/").blocked, true);
 
 // Review eligibility is neutral, delayed, and permanently dismissible.
 const eligibleDate = at(2026, 8, 31, 12);

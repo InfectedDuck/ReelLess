@@ -2,11 +2,12 @@
 // Kept free of file I/O so the transform can be asserted directly in tests.
 
 // Floor chosen by the newest manifest key this package uses: data_collection_permissions is read
-// from Firefox 140 (desktop) and 142 (Android), and AMO's validator warns when the minimum is
-// older. Every API the code relies on is older still: declarativeNetRequest dynamic-rule limits
+// from Firefox 140 (desktop), and AMO's validator warns when the minimum is older.
+// Every API the code relies on is older still: declarativeNetRequest dynamic-rule limits
 // were aligned with Chrome in 128, scripting.registerContentScripts arrived in 101.
+// Android is excluded from this release: the gecko_android opt-in is omitted and the
+// Android gating code stays dormant until a separately tested mobile release.
 export const FIREFOX_MIN_VERSION = "140.0";
-export const FIREFOX_ANDROID_MIN_VERSION = "142.0";
 
 // AMO caps the manifest name at 45 characters, well under the Chrome Web Store's 75, so the
 // search-led Chrome name cannot ship to Firefox as it is. The brand stays first.
@@ -42,9 +43,7 @@ export function toFirefoxManifest(chromeManifest) {
       // Required of every new AMO submission since 2025-11-03. "none" is the truthful answer:
       // nothing leaves the browser, and the consent prompt is skipped entirely.
       data_collection_permissions: { required: ["none"] }
-    },
-    // Opts the same package in to Firefox for Android, where the four core hosts already match.
-    gecko_android: { strict_min_version: FIREFOX_ANDROID_MIN_VERSION }
+    }
   };
 
   return manifest;

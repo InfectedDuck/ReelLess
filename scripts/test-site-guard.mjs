@@ -137,7 +137,7 @@ for (const [xExplore, xSidebar] of [[true, false], [false, true], [true, true]])
   x.document.querySelector('[data-testid="sidebarColumn"]').appendChild(late);
   await wait(220);
   assert.equal(late.hasAttribute("data-reelless-x-hidden"), xSidebar);
-  for (const path of ["/search?q=work", "/friend", "/friend/status/123", "/messages"]) {
+  for (const path of ["/search?q=work", "/friend", "/friend/status/123", "/messages", "/i/chat"]) {
     x.dom.window.history.pushState({}, "", path);
     await nextPass(x.dom);
     assert.equal(marked("timeline"), false, "only Explore discovery regions should be hidden");
@@ -1018,10 +1018,27 @@ for (const selector of [
   assert.ok(guardCss.includes(selector), `site_guard.css must cover ${selector}`);
 }
 // Each surface must have a rule, gated on its own token, and absent by default.
-for (const surface of ["homeFeed", "sidebar", "comments", "endScreen"]) {
+for (const surface of ["homeFeed", "sidebar", "comments", "endScreen", "games"]) {
   assert.ok(guardCss.includes(`[data-reelless-surfaces~="${surface}"]`), `site_guard.css needs a rule for the ${surface} surface`);
 }
 assert.equal(guardCss.includes('data-reelless-surfaces~="explore"'), false, "Explore and Trending are gone from YouTube's navigation; the rule should not linger");
+// Facebook placeholders ("Reel blocked" / "Video blocked") must live inside the feed only:
+// every facebook-feed rule targeting post containers is scoped to div[role="feed"], so top
+// tabs and sidebar rails collapse via display:none instead of showing a notice. (The bare
+// script-marker collapse rule is exempt: it only ever hides, never stamps a notice.)
+const fbFeedRules = [...guardCss.matchAll(/html\[data-reelless-facebook-feed\][^{]*:is\(div\[aria-posinset\][^{]*\{/g)];
+assert.ok(fbFeedRules.length > 0, "expected facebook-feed post rules");
+for (const [rule] of fbFeedRules) {
+  assert.ok(rule.includes('div[role="feed"]'), `facebook-feed post rule must be feed-scoped: ${rule.slice(0, 120)}`);
+}
+// The games shelf is matched on its /playables/ links, never on title text, so localised
+// shelves are hidden without language-specific rules.
+assert.ok(guardCss.includes('a[href*="/playables"]'), "site_guard.css must hide the Playables games shelf by its links");
+const playablesSelectorLines = guardCss.split("\n").filter((line) => line.includes("a[href") && /playables/i.test(line));
+assert.ok(playablesSelectorLines.length > 0);
+for (const line of playablesSelectorLines) {
+  assert.equal(/has-text|title=|Игротека/.test(line), false, "the games rule must stay locale-independent");
+}
 assert.match(guardSource, /applySurfaceAttribute/, "the guard must publish which surfaces are on");
 
 // Instagram and Facebook rules: the innermost card around a Reel link, never a wrapper holding
@@ -1083,6 +1100,83 @@ assert.match(guardSource, /facebook: \/\^\\\/messages/, "Messenger must be excus
 assert.match(guardSource, /setInterval\(scheduleScan, FULL_SCAN_INTERVAL\)/, "the periodic sweep must stay incremental so scrolling feeds keep budget");
 assert.match(guardSource, /setInterval\(requestFullScan, FULL_SCAN_INTERVAL \* 10\)/, "a slower full sweep must remain as a safety net");
 assert.match(guardSource, /Only YouTube's Shorts nav rows are identified by those labels/, "noisy title/aria-label churn off YouTube must not schedule scans");
+
+// Blocked full pages must not keep playing behind the focus screen: existing media is
+// paused/muted and resumed playback is stopped while blocked. Allowed pages are untouched.
+{
+  const paused = [];
+  const blockedMedia = await fixture({
+    url: "https://www.tiktok.com/",
+    html: '<main><video id="clip" autoplay></video><audio id="track"></audio></main>',
+    settings: defaults
+  });
+  blockedMedia.dom.window.HTMLMediaElement.prototype.pause = function () { paused.push(this.id); this.setAttribute("data-paused", "true"); };
+  await nextPass(blockedMedia.dom);
+  const screen = blockedMedia.document.getElementById("reelless-focus-screen");
+  assert.ok(screen, "a blocked TikTok feed shows the focus screen");
+  assert.equal(screen.getAttribute("role"), "dialog");
+  assert.equal(screen.getAttribute("aria-modal"), "true");
+  const clip = blockedMedia.document.getElementById("clip");
+  assert.equal(clip.muted, true, "blocked-page video is muted");
+  assert.equal(clip.preload, "none", "blocked-page video preload is disabled");
+  // Resumed playback while blocked is stopped again via play/playing listeners.
+  clip.dispatchEvent(new blockedMedia.dom.window.Event("play", { bubbles: true }));
+  await wait(50);
+  assert.ok(paused.length > 0 || clip.hasAttribute("data-paused") || clip.muted, "resumed playback on a blocked page is suppressed");
+  blockedMedia.dom.window.close();
+}
+// A refused click on an allowed page (pinned screen) must not stop unrelated media.
+{
+  const allowed = await fixture({
+    url: "https://www.youtube.com/watch?v=lesson",
+    html: '<main><video id="lesson" autoplay></video><a id="short" href="/shorts/abc">Short</a></main>',
+    settings: withEntryPoints(defaults, "youtube", "keep")
+  });
+  const lesson = allowed.document.getElementById("lesson");
+  lesson.dispatchEvent(new allowed.dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  await wait(100);
+  allowed.dom.window.close();
+}
+// The focus-screen settings action must go through the background openOptions message
+// (content scripts cannot call chrome.runtime.openOptionsPage) and report failures visibly.
+{
+  const opened = await fixture({ url: "https://www.tiktok.com/", html: "<main></main>", settings: defaults });
+  await nextPass(opened.dom);
+  const settingsButton = opened.document.querySelector('[data-action="settings"]');
+  assert.ok(settingsButton, "the focus screen offers Open settings");
+  await settingsButton.dispatchEvent(new opened.dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  await wait(100);
+  assert.ok(opened.messages.some((message) => message.type === "openOptions"), "settings opens via the background openOptions message");
+  opened.dom.window.close();
+}
+// Keyboard access: focus moves into the dialog, Tab is contained, Escape only dismisses
+// the pinned Stay-here case, and previous focus is restored on dismiss.
+{
+  const keyboard = await fixture({
+    url: "https://www.youtube.com/watch?v=lesson",
+    html: '<main><button id="before">Before</button><a id="short" href="/shorts/abc">Short</a></main>',
+    settings: withEntryPoints(defaults, "youtube", "keep")
+  });
+  const before = keyboard.document.getElementById("before");
+  before.focus();
+  keyboard.document.getElementById("short").dispatchEvent(new keyboard.dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  await wait(150);
+  const dialog = keyboard.document.getElementById("reelless-focus-screen");
+  assert.ok(dialog, "a blocked click raises the pinned screen");
+  assert.ok(dialog.contains(keyboard.document.activeElement), "focus moves into the dialog");
+  // Escape dismisses only the pinned case.
+  keyboard.document.dispatchEvent(new keyboard.dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  await wait(100);
+  assert.equal(keyboard.document.getElementById("reelless-focus-screen"), null, "Escape dismisses the pinned Stay-here screen");
+  keyboard.dom.window.close();
+  const blocked = await fixture({ url: "https://www.tiktok.com/", html: "<main></main>", settings: defaults });
+  await nextPass(blocked.dom);
+  assert.ok(blocked.document.getElementById("reelless-focus-screen"), "blocked page shows its screen");
+  blocked.document.dispatchEvent(new blocked.dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  await wait(100);
+  assert.ok(blocked.document.getElementById("reelless-focus-screen"), "Escape never bypasses a blocked page");
+  blocked.dom.window.close();
+}
 
 await wait(50);
 assert.deepEqual(unexpectedErrors.map((error) => error.message), [], "the guard must not raise errors in any fixture");

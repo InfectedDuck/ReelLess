@@ -72,8 +72,8 @@ html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
 ):not(:where(
   html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li),
   html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li) *,
-  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li),
-  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li) *
+  html[data-reelless-facebook-feed] div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li),
+  html[data-reelless-facebook-feed] div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li) *
 )) {
   display: none !important;
 }
@@ -82,18 +82,20 @@ html:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"]) :is(
    each blocked post's full media height, so a run of videos never collapses the feed and yanks
    the reader. Reel posts read "Reel blocked" (Instagram's equivalent reads "Reel hidden");
    Watch posts read "Video blocked" (see the videoPosts block below). Navigation entries,
-   profile-grid tiles and theater dialogs still collapse normally; only feed post containers
-   become placeholders. */
+   profile-grid tiles and theater dialogs still collapse normally; only post containers inside
+   the feed (div[role="feed"]) become placeholders. Scoping to the feed matters: the top tabs
+   and sidebar rails sit inside the same pagelet wrappers, and without it their Reel entries
+   would be stamped "Reel blocked" instead of collapsing outright. */
 html[data-reelless-facebook-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li)
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li)
   :is(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) {
   visibility: hidden !important;
 }
 
 html[data-reelless-facebook-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]),
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]),
 html[data-reelless-facebook-feed]
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) {
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) {
   box-sizing: border-box !important;
   block-size: 56px !important;
   min-block-size: 56px !important;
@@ -105,16 +107,16 @@ html[data-reelless-facebook-feed]
 }
 
 html[data-reelless-facebook-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) > *,
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) > *,
 html[data-reelless-facebook-feed]
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) > * {
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]) > * {
   visibility: hidden !important;
 }
 
 html[data-reelless-facebook-feed]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])::after,
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])::after,
 html[data-reelless-facebook-feed]
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])::after {
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])::after {
   content: "Reel blocked";
   position: absolute;
   inset: 0;
@@ -210,8 +212,8 @@ html[data-reelless-surfaces~="videoPosts"] :is(
      booted yet is still hidden before it can flash. */
   :is(div[role="dialog"], div[aria-modal="true"], div[role="alertdialog"]):has(video, [aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"], [data-testid*="video"], [data-testid*="Video"], [data-testid*="player"], [data-testid*="Player"])
 ):not(:where(
-  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li),
-  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li) *
+  html[data-reelless-facebook-feed] div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li),
+  html[data-reelless-facebook-feed] div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li) *
 )) {
   display: none !important;
 }
@@ -219,15 +221,17 @@ html[data-reelless-surfaces~="videoPosts"] :is(
 /* Watch-post placeholder on the Facebook feed: the same compact-notice idea as Reels above,
    reading "Video blocked". Gated on both the feed marker and the videoPosts token, so it only
    ever applies while Watch is blocked with Hidden entry points; keep mode and conversations
-   are untouched. Posts carrying a Reel link are excluded here and stay with "Reel blocked". */
+   are untouched. Like the Reel placeholders, it is scoped to div[role="feed"] so navigation
+   chrome collapses via display:none instead of showing a notice. Posts carrying a Reel link
+   are excluded here and stay with "Reel blocked". */
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])),
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])),
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"]),
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"]),
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])),
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])),
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])) {
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])) {
   box-sizing: border-box !important;
   block-size: 72px !important;
   min-block-size: 72px !important;
@@ -239,24 +243,24 @@ html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]
 }
 
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])) > *,
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])) > *,
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"]) > *,
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"]) > *,
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])) > *,
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"])) > *,
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])) > * {
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"])) > * {
   visibility: hidden !important;
 }
 
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"]))::after,
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(video):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"]))::after,
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"])::after,
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has(a[href*="/watch"]:not([href*="/watch/reels"]), a[href*="/video.php"], a[href*="/share/v/"], a[href*="fb.watch"], a[href*="/videos/"], a[href$="/videos"])::after,
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]:not([data-reelless-mode="keep"]):not([data-reelless-mode="off"])
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"]))::after,
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([aria-label*="Play"], [aria-label*="play"], [aria-label*="Video"], [aria-label*="video"], [role="slider"], [role="progressbar"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href*="/share/r/"]))::after,
 html[data-reelless-facebook-feed][data-reelless-surfaces~="videoPosts"]
-  :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]))::after {
+  div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li):not(:has(article, [role="article"], [role="listitem"], li, main, [role="main"], div[aria-posinset], div[data-pagelet])):has([data-reelless-hidden="true"]):not(:has(a[href*="/reel/"], a[href*="/reels/"], a[href$="/reels"], a[href*="/share/r/"]))::after {
   content: "Video blocked";
   position: absolute;
   inset: 0;
@@ -304,11 +308,29 @@ html[data-reelless-surfaces~="endScreen"] :is(
   display: none !important;
 }
 
+/* The Playables games shelf (e.g. "YouTube Игротека") and its game cards.
+   Locale-independent: matched on the /playables/ game links, never on the shelf
+   title text. Hiding the shelf takes its heading with it; the bare-link and card
+   fallbacks catch game cards rendered outside a shelf. */
+html[data-reelless-surfaces~="games"] :is(
+  ytd-rich-shelf-renderer:has(a[href*="/playables"]),
+  ytd-rich-section-renderer:has(a[href*="/playables"]),
+  ytd-rich-item-renderer:has(a[href*="/playables"]),
+  ytm-rich-section-renderer:has(a[href*="/playables"]),
+  ytm-rich-shelf-renderer:has(a[href*="/playables"]),
+  mini-game-card-view-model,
+  ytd-guide-entry-renderer:has(a[href*="/playables"]),
+  ytd-mini-guide-entry-renderer:has(a[href*="/playables"]),
+  a[href*="/playables"]
+) {
+  display: none !important;
+}
+
 [data-reelless-hidden="true"]:not(:where(
   html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li),
   html[data-reelless-instagram-feed] :is(article, [role="article"], [role="listitem"], li) *,
-  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li),
-  html[data-reelless-facebook-feed] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li) *
+  html[data-reelless-facebook-feed] div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li),
+  html[data-reelless-facebook-feed] div[role="feed"] :is(div[aria-posinset], div[data-pagelet], article, section, [role="article"], [role="listitem"], li) *
 )) {
   display: none !important;
 }

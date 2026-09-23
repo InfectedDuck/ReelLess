@@ -9,7 +9,9 @@ if (-not (Test-Path -LiteralPath $manifestPath)) { throw "Missing manifest.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 if ($manifest.manifest_version -ne 3) { throw "manifest_version must be 3" }
-if ($manifest.version -ne "2.3.0") { throw "Release version must be 2.3.0" }
+$package = Get-Content -LiteralPath (Join-Path $root "package.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($manifest.version -ne $package.version) { throw "manifest.json ($($manifest.version)) and package.json ($($package.version)) must agree" }
+if ($manifest.version -notmatch '^\d+\.\d+\.\d+$') { throw "Release version must be semantic: $($manifest.version)" }
 if ($manifest.name -notlike "*ReelLess*") { throw "Unexpected extension name" }
 if ($manifest.name.Length -gt 75) { throw "Store name exceeds 75 characters: $($manifest.name.Length)" }
 if ($manifest.description.Length -gt 132) { throw "Store summary exceeds 132 characters: $($manifest.description.Length)" }

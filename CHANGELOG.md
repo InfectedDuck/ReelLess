@@ -2,8 +2,19 @@
 
 All notable changes to ReelLess are documented here.
 
+## 2.3.1 - 2026-09-24
+
+- Reliability release: blocked full pages now pause existing audio/video and keep resumed playback stopped while blocked; allowed watch pages, conversations, and refused-click pages keep playing.
+- Focus-screen settings now open through the background (`openOptions` message) with a visible error if opening fails; the dialog traps Tab, restores focus on dismiss, and Escape only closes the Stay-here case.
+- Popup and Settings now write through one serialized background writer that applies only requested fields; switching a site off remembers its mode and switching back on restores it (settings schema 11). Popup status distinguishes Protection off, Paused, Outside schedule, Nothing selected, active protection, and Ultimate Lock.
+- Custom boundaries use one exact-host representation (www is distinct, path case preserved); explicit http URLs, credentials, ports, queries, fragments, and wildcards are rejected with clear messages, duplicates and the 50-entry cap error before access is requested, and guards register host-wide so allowed pages detect SPA navigation. Direct visits may show the browser blocked-page error; in-page navigation uses the focus screen.
+- Firefox desktop ships without the Android opt-in; optional-site and custom flows stay dormant on Android. Browser-neutral wording, per-browser pinning help, coverage/limitations table, local data controls with Reset counters, and Help/diagnostics with Copy diagnostics (no URLs or entries) are included. Review actions stay hidden until real listing URLs exist.
+- Ultimate Lock lives in a collapsed Advanced subsection with its removal ritual unchanged.
+
 ## Unreleased
 
+- Core protection cards now offer one-click full-page blocks for addictive pages (Home feed, Explore, Trending, Groups, Stories, Marketplace, TikTok LIVE). Ticking a page switches that site to Selected sections while preserving short-form defaults, and unticking the last extra page collapses back to Short-form only. Blocked pages stop in place with the focus screen linking to allowed pages.
+- Facebook video blocking now rechecks every player, including reused players and videos behind an existing focus screen. With Reels and Watch hidden, CSS hides video elements directly regardless of post wrappers or links; resumed playback is stopped on both play and playing events.
 - Every site now has a fuller tab checklist, and each entry explains which tab it removes: YouTube Home feed and Trending; Instagram Home feed; Facebook Home feed and Groups; TikTok LIVE; X Notifications and Messages; Reddit Chat and Notifications; Twitch channel Videos (VODs); Pinterest Search; LinkedIn Videos and Notifications; and Threads Activity. All of them are opt-in and stay allowed by default, and every checklist entry carries a description naming its tab. An older Twitch Videos choice carries onto channel video archives.
 - Personal custom boundaries now block like platforms do: a granted entry stops in place with its own focus screen, hides its links on every guarded page, and refuses clicks, in addition to the existing navigation blocking. A bare domain (no path) blocks the whole site, which validation previously rejected.
 - Scrolling stays smooth with video protection on. The every-second full document sweep is now an incremental pass (new content only) with a slower full safety net, title/aria-label churn off YouTube no longer schedules scans, thumbnail-only posts are hidden by the stylesheet instead of a document-wide attribute sweep, and the theater-dialog check runs once per pass. The video-post stylesheet rules share one innermost-post pattern per content kind instead of one rule per tag.
