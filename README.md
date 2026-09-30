@@ -14,12 +14,18 @@ Short videos are designed to keep you scrolling. I wanted a tool that removes th
 
 ## What it does
 
-- **Hides distracting videos in-place:** YouTube Shorts, Instagram / Facebook Reels, TikTok videos disappear from feeds. Pages stay smooth and scrollable — no reloads, no blank gaps, no jumping.
-- **Hide and block specific tabs:** e.g. YouTube Home / Trending, Instagram Explore, Facebook Groups, TikTok LIVE, X Explore, Reddit Home, LinkedIn Feed and more. You choose, everything else keeps working.
+- **Hides distracting videos in-place:** YouTube Shorts, Instagram Reels, TikTok videos disappear from feeds. Pages stay smooth and scrollable — no reloads, no blank gaps, no jumping.
+- **Hide and block specific tabs:** e.g. YouTube Home / Trending / Subscriptions, Instagram Home / Explore, Facebook Home / Groups / Events, TikTok LIVE, X Explore, Reddit Home, LinkedIn Feed and more. You choose, everything else keeps working. Facebook is full tabs only — no per-video blocking.
 - **Stays out of your messages:** Instagram Direct and Messenger threads are never touched.
 - **Focus helpers:** study / work schedules, short pauses, daily count of avoided distractions, calm focus screen instead of autoplay.
 - **Ultimate Lock (optional):** extra self-control mode that locks protection on until you finish a short timed release ritual.
 - **Private by design:** everything runs on your device. Nothing is collected or sent anywhere.
+
+## Where you see it work
+
+- **In feeds:** blocked Shorts / Reels cards are removed or replaced with a small `Reel blocked` placeholder, so you can keep scrolling with no jump.
+- **When you open something blocked:** the page stops in place and shows a calm screen — `This section is outside your focus plan` (YouTube / Instagram / tabs), `TikTok is outside your focus plan`, or `This page is outside your focus plan` (custom sites) — with links back to allowed pages.
+- **How tab hiding works:** Settings → Advanced → pick a site → Selected sections → tick only the tabs you want gone. Example: Facebook → tick Home to hide and block the Home feed, tick Groups to hide and block Groups. Untick to allow again. Nothing else on the site changes.
 
 ![Settings](store-assets/04-advanced-settings.png)
 ![Focus screen](store-assets/05-focus-count.png)
@@ -44,7 +50,7 @@ Short videos are designed to keep you scrolling. I wanted a tool that removes th
 - X / Twitter: Block Home feed, Explore, Notifications, Messages, Communities, Grok, plus hide recommendations and sidebar distractions. Profiles, posts and bookmarks stay available.
 - Reddit: Block Home feed, Popular / News / Explore, Chat, Notifications, inbox, plus hide sidebar distractions. Communities, posts, comments and search stay available.
 - More sites: Snapchat Spotlight, Twitch Home / Browse / Clips / Videos / Drops, Pinterest Home / Explore / Search, LinkedIn Feed / Videos / Notifications / Messaging / My Network, Threads Home / Activity. Jobs, search, profiles and messages stay available.
-- YouTube Shorts, Instagram / Facebook Reels, TikTok videos are hidden in feeds. Opening one shows a calm focus screen instead of playing.
+- YouTube Shorts, Instagram Reels, TikTok videos are hidden in feeds. Opening one shows a calm focus screen instead of playing. Facebook uses full-tab blocks only (Home, Groups, Events, etc.), no per-video blocking.
 - Choice per site: **Hidden** or **Visible, can't be opened**.
 - Instagram Direct and Messenger threads are never modified.
 - Only deliberate attempts increase the local today / all-time count.
