@@ -1,44 +1,59 @@
-# Block Shorts & Reels: YouTube, Instagram, TikTok, Facebook — ReelLess
+# ReelLess – Stay Focused Online
 
-ReelLess removes YouTube Shorts, Instagram and Facebook Reels, and TikTok distractions while keeping useful pages available. It is a free, open-source, account-free, ad-free, and telemetry-free Manifest V3 Chrome extension.
+> **ReelLess – Focus Browser Add-on:** Hides YouTube Shorts, Instagram Reels and TikTok videos, with customizable settings to hide and block specific tabs across 11 sites. 100% offline, private, tested.
 
-## Launch locally in Google Chrome
+Free, open-source add-on for Chrome + Firefox. No accounts, no ads, no tracking.
+
+## Why I built this
+
+Short videos are designed to keep you scrolling. I wanted a tool that removes the distraction but keeps the useful parts — messages, search, profiles, learning videos — so students can focus without quitting social media completely.
+
+![Popup](store-assets/01-popup.png)
+![YouTube before/after](store-assets/02-youtube-before-after.png)
+![Instagram and Facebook](store-assets/03-instagram-facebook.png)
+
+## What it does
+
+- **Hides distracting videos in-place:** YouTube Shorts, Instagram / Facebook Reels, TikTok videos disappear from feeds. Pages stay smooth and scrollable — no reloads, no blank gaps, no jumping.
+- **Hide and block specific tabs:** e.g. YouTube Home / Trending, Instagram Explore, Facebook Groups, TikTok LIVE, X Explore, Reddit Home, LinkedIn Feed and more. You choose, everything else keeps working.
+- **Stays out of your messages:** Instagram Direct and Messenger threads are never touched.
+- **Focus helpers:** study / work schedules, short pauses, daily count of avoided distractions, calm focus screen instead of autoplay.
+- **Ultimate Lock (optional):** extra self-control mode that locks protection on until you finish a short timed release ritual.
+- **Private by design:** everything runs on your device. Nothing is collected or sent anywhere.
+
+![Settings](store-assets/04-advanced-settings.png)
+![Focus screen](store-assets/05-focus-count.png)
+
+## Built like a real product
+
+- Works on 11 sites, 40+ sections, with settings that safely carry over between updates
+- Fast and stable on busy feeds (tested scrolling, no flicker)
+- Full test suite + security and privacy reviews in this repo
+- Store-ready builds for Chrome and Firefox (`npm run build`)
+
+## Try it locally
 
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
-3. Click **Load unpacked**.
-4. Select this folder, not the ZIP:
+3. Click **Load unpacked** and select this folder.
+4. Pin ReelLess, then open YouTube, Instagram, Facebook or TikTok.
 
-   `C:\Users\ASUS\Desktop\projects\reels_blocker`
+<details>
+<summary><b>Full feature details (click to expand)</b></summary>
 
-5. Pin ReelLess from Chrome’s Extensions menu.
-6. Test YouTube Shorts, Instagram Reels, Facebook Reels, and TikTok.
-7. After code changes, click **Reload** on the extension card and refresh existing social tabs.
-8. Use the extension card’s service-worker link to check for errors.
+- X / Twitter: Block Home feed, Explore, Notifications, Messages, Communities, Grok, plus hide recommendations and sidebar distractions. Profiles, posts and bookmarks stay available.
+- Reddit: Block Home feed, Popular / News / Explore, Chat, Notifications, inbox, plus hide sidebar distractions. Communities, posts, comments and search stay available.
+- More sites: Snapchat Spotlight, Twitch Home / Browse / Clips / Videos / Drops, Pinterest Home / Explore / Search, LinkedIn Feed / Videos / Notifications / Messaging / My Network, Threads Home / Activity. Jobs, search, profiles and messages stay available.
+- YouTube Shorts, Instagram / Facebook Reels, TikTok videos are hidden in feeds. Opening one shows a calm focus screen instead of playing.
+- Choice per site: **Hidden** or **Visible, can't be opened**.
+- Instagram Direct and Messenger threads are never modified.
+- Only deliberate attempts increase the local today / all-time count.
+- Schedules, full-site modes, section controls and custom domains live under Advanced.
+- Ultimate Lock (optional): locks protection on. Removal needs a typed phrase, private reflection and timed check-ins. Browser admins can still disable/uninstall the extension.
 
-## Product behavior
+</details>
 
-- X / Twitter offers **Block Home feed** (For You and Following), **Block Explore page**, **Block Notifications**, **Block Messages**, **Block Communities**, **Block Grok**, **Hide Explore recommendations** (search remains available), and **Hide sidebar distractions** (news, trends, and Who to follow). These optional controls are off by default. Profiles, posts, and bookmarks remain available unless you select Block all. X video posts are not blocked.
-- Reddit offers **Block Home feed**, **Block Popular, News, and Explore**, **Block Chat**, **Block Notifications**, **Block Message inbox**, and **Hide sidebar distractions** for Reddit Games and promotional discovery links. Communities, posts, comments, search, and saved posts remain available unless you select Block all.
-- The remaining Advanced sites use current web boundaries: Snapchat Spotlight with opt-in Stories; Twitch Home recommendations, Browse, Clips, channel Videos (VODs), and Drops; Pinterest Home, Explore, and Search; LinkedIn Feed, Videos, Notifications, Messaging, and My Network; and Threads Home and Activity. Utility pages such as Jobs, search, profiles, messages, saved content, boards, and individual posts remain available. Instagram, Facebook, and Snapchat Stories are opt-in under Selected sections and stay allowed by default. Core sites also offer extra tabs: YouTube Home feed, Trending, Subscriptions, and Gaming; Instagram Home feed; Facebook Home feed, Groups, and Events; and TikTok LIVE.
-- YouTube Shorts entry points are hidden; opening a Short or visiting `/shorts/{id}` directly shows the focus screen instead of playing anything.
-- Each site can instead keep Shorts, Reels, or feed links visible while still stopping them from opening. Choose **Hidden** or **Visible, can't be opened** on the core card or in Advanced.
-- Instagram Reels entry points are hidden; direct Reel visits return to the normal feed.
-- Facebook Reels, feed videos, Live videos, and fb.watch shares are hidden; opening a video stops in place with the focus screen instead of playing it. Direct Reel visits return to the feed. To allow videos again, use Advanced → Facebook → Selected sections and uncheck Watch.
-- Instagram Direct and Facebook Messenger conversations are never modified. A Reel shared in a conversation refuses to open, but nothing in the thread is hidden.
-- TikTok feed/video surfaces show a calm local focus screen. LIVE, Messages, Upload, and Settings stay available by default; use Advanced → TikTok → Selected sections for narrower or wider control.
-- Only deliberate blocked navigation or clicks increase the local today/all-time count. Hidden cards do not.
-- Schedules, seven additional platforms, full-site blocking, section controls, and custom domains live under Advanced.
-
-The four core sites are bundled. Advanced sites and custom domains request exact optional access only from a user action. Custom boundaries use block-only dynamic rules for navigation plus the same in-page guard as the platforms: their pages stop in place with a focus screen, their links are hidden, and opening them is refused; core redirects are handled by site-specific navigation guards.
-
-### Ultimate Lock
-
-Settings includes an opt-in **Ultimate Lock** for someone who wants extra friction against disabling protection. Choose either **Block all core short-form content** or **Keep my current platform choices**, type `I ACCEPT THE LOCK`, and confirm. It forces protection on, keeps the schedule always active, and removes the extension's normal pause and settings controls.
-
-To remove it, select **Remove Ultimate Lock**, type `REMOVE ULTIMATE`, write a private reason, and complete three timed check-ins during at least one focused minute. The reason is never saved. Leaving, reloading, minimizing, or defocusing Settings resets the entire release ritual. This is deliberate in-extension friction only: Chrome or a device administrator can still disable, uninstall, or clear an extension.
-
-## Development checks
+## For developers
 
 Install the test dependencies once:
 
