@@ -21,6 +21,17 @@ const fixtureStyle = `
   .shorts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}.short{height:240px;border-radius:15px;background:#456b59;color:white;padding:15px;display:flex;align-items:end;font-weight:800}.reelless-note{padding:25px;border:2px dashed #66bdaa;border-radius:16px;background:#e9faf6;color:#176454;font-weight:800;text-align:center}
 `;
 
+// Privacy-safe browser surfaces used when a live signed-out page is unavailable or when a
+// deterministic before/after comparison is needed. The real unpacked extension still runs on
+// the real platform URL inside Chromium; only the account/feed markup is locally supplied.
+const tiktokTestPage = `<!doctype html><style>
+  *{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden}body{margin:0;background:#090b0c;color:#f5f5f5;font:14px Inter,"Segoe UI",Arial,sans-serif}
+  .app{display:grid;grid-template-columns:210px 1fr;height:100%}.rail{padding:26px 18px;border-right:1px solid #272a2c;background:#111315}.logo{display:flex;align-items:center;gap:10px;margin:0 10px 30px;font-size:22px;font-weight:850}.logo i{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#25f4ee,#fe2c55);font-style:normal;color:#050505}
+  nav{display:grid;gap:7px}nav a{display:flex;align-items:center;gap:13px;padding:13px 14px;border-radius:9px;color:#f4f4f4;text-decoration:none;font-weight:700}nav a:first-child{background:#24272a}nav span{display:grid;place-items:center;width:24px;height:24px;border:1px solid #555;border-radius:7px;color:#b9c0c4;font-size:11px}
+  .stage{min-width:0}.top{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 34px;border-bottom:1px solid #222629;background:#101214}.search{width:390px;padding:13px 18px;border-radius:999px;background:#25282b;color:#959da2}.actions{display:flex;gap:10px}.actions b{padding:10px 16px;border-radius:7px;background:#fe2c55}.actions span{padding:10px 16px;border:1px solid #3b4044;border-radius:7px}
+  main{height:calc(100% - 72px);display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 60% 20%,#1d2525,#0c0e0f 48%)}.viewer{display:grid;grid-template-columns:390px 54px;gap:18px;align-items:end}.video{position:relative;height:610px;overflow:hidden;border-radius:18px;background:linear-gradient(160deg,#264d48 0%,#172b38 44%,#43283e 100%);box-shadow:0 24px 70px #000}.video:before{content:"";position:absolute;inset:70px 65px 165px;border-radius:50% 45% 55% 40%;background:linear-gradient(145deg,#a8d8c1,#4a8b85 55%,#274c68);filter:blur(1px)}.video:after{content:"FOCUS MODE";position:absolute;top:28px;left:26px;padding:8px 11px;border:1px solid rgba(255,255,255,.25);border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.12em}.caption{position:absolute;right:22px;bottom:22px;left:22px}.caption strong{display:block;margin-bottom:8px}.caption p{margin:0;color:#d5d9da;line-height:1.45}.side-actions{display:grid;gap:18px;padding-bottom:22px;text-align:center}.side-actions div{display:grid;gap:6px;justify-items:center;color:#aeb5b8;font-size:11px}.side-actions i{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:#23272a;color:#fff;font-style:normal;font-size:18px}
+</style><div class="app"><aside class="rail"><div class="logo"><i>♪</i><b>TikTok</b></div><nav><a href="/"><span>⌂</span>For You</a><a href="/explore"><span>◇</span>Explore</a><a href="/following"><span>＋</span>Following</a><a href="/messages"><span>✉</span>Messages</a><a href="/upload"><span>↑</span>Upload</a></nav></aside><section class="stage"><header class="top"><div class="search">Search</div><div class="actions"><span>Upload</span><b>Log in</b></div></header><main><div class="viewer"><article class="video"><div class="caption"><strong>@focus_demo</strong><p>A quiet study session — no account or personal feed is used in this test.</p></div></article><aside class="side-actions"><div><i>♡</i>Like</div><div><i>◌</i>Comment</div><div><i>↗</i>Share</div></aside></div></main></section></div>`;
+
 async function setState(worker, enabled = true) {
   await worker.evaluate(async ({ enabled }) => {
     const stored = await chrome.storage.local.get("settingsV2");
@@ -123,7 +134,18 @@ async function compose(destination, title, panels, widths) {
   await page.close();
 }
 
+async function composeArrowComparison(destination, title, beforePath, afterPath, beforeLabel, afterLabel) {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const before = `data:image/png;base64,${fs.readFileSync(beforePath).toString("base64")}`;
+  const after = `data:image/png;base64,${fs.readFileSync(afterPath).toString("base64")}`;
+  await page.setContent(`<!doctype html><style>*{box-sizing:border-box}html,body{width:1280px;height:800px;overflow:hidden}body{margin:0;padding:28px 32px 32px;background:#1f2421;color:#edf0ed;font-family:"Segoe UI",Arial,sans-serif}header{height:62px;display:flex;align-items:flex-start;justify-content:space-between}h1{margin:0;font-size:27px;font-weight:650;letter-spacing:-.03em}header span{color:#aeb9b2;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}.comparison{height:678px;display:grid;grid-template-columns:1fr 66px 1fr;align-items:center}.panel{position:relative;height:678px;overflow:hidden;border:1px solid #3c4540;border-radius:9px;background:#fff}.panel img{width:100%;height:100%;object-fit:cover;object-position:left top}.label{position:absolute;right:14px;bottom:14px;left:14px;z-index:2;padding:10px 12px;border:1px solid #4d5751;border-radius:7px;background:#282e2a;color:#edf0ed;font-size:12px;font-weight:750;text-align:center}.arrow{display:grid;place-items:center;width:48px;height:48px;margin:auto;border:1px solid #4f6859;border-radius:50%;background:#2d493b;color:#bce0c9;font-size:30px;line-height:1}</style><header><h1>${title}</h1><span>Captured from the live site in Chrome</span></header><div class="comparison"><div class="panel"><img src="${before}"><div class="label">${beforeLabel}</div></div><div class="arrow" aria-hidden="true">→</div><div class="panel"><img src="${after}"><div class="label">${afterLabel}</div></div></div>`);
+  await page.screenshot({ path: destination });
+  await page.close();
+}
+
 const skipped = [];
+const notes = [];
 
 try {
   fs.mkdirSync(output, { recursive: true });
@@ -152,7 +174,8 @@ try {
   const YT_SEARCH = "https://www.youtube.com/results?search_query=lofi+study";
   const ytBefore = path.join(scratch, "yt-before.png");
   const ytAfter = path.join(scratch, "yt-after.png");
-  if (await reachableSignedOut(YT_SEARCH, "ytd-video-renderer")) {
+  const ytLiveReady = await reachableSignedOut(YT_SEARCH, "ytd-video-renderer");
+  if (ytLiveReady) {
     const ytViewport = { width: 860, height: 900 };
     await setState(worker, false);
     const offset = await capturePage(YT_SEARCH, ytBefore, { viewport: ytViewport });
@@ -164,23 +187,7 @@ try {
     skipped.push("02-youtube-before-after.png (YouTube search was not reachable)");
   }
 
-  // 3. Instagram and Facebook show a login wall to a signed-out browser, so this frame can only be
-  //    captured from a profile that is already signed in. It is skipped rather than faked.
-  const ig = path.join(scratch, "instagram.png");
-  const fb = path.join(scratch, "facebook.png");
-  const igReady = await reachableSignedOut("https://www.instagram.com/", "article, [role='article']");
-  const fbReady = await reachableSignedOut("https://www.facebook.com/", "[role='feed'], [role='article']");
-  if (igReady && fbReady) {
-    await setState(worker, true);
-    await capturePage("https://www.instagram.com/", ig, { viewport: { width: 640, height: 720 } });
-    await capturePage("https://www.facebook.com/", fb, { viewport: { width: 640, height: 720 } });
-    await compose(path.join(output, "03-instagram-facebook.png"), "Reels links disappear; useful sections remain", [{ label: "Instagram", path: ig }, { label: "Facebook", path: fb }]);
-    console.log("03-instagram-facebook.png captured from the live sites.");
-  } else {
-    skipped.push("03-instagram-facebook.png (Instagram and Facebook require a signed-in profile; see REELLESS_PROFILE below)");
-  }
-
-  // 4. Actual Advanced settings with optional access language visible.
+  // 3. Actual Advanced settings with optional access language visible.
   const advanced = await context.newPage();
   await advanced.setViewportSize({ width: 1280, height: 800 });
   await advanced.goto(`chrome-extension://${id}/options.html`);
@@ -190,24 +197,179 @@ try {
   await advanced.screenshot({ path: path.join(output, "04-advanced-settings.png") });
   await advanced.close();
 
-  // 5. Actual focus screen beside the actual counted-attempt popup.
+  // 4. The real focus screen running in Chromium over either the live signed-out TikTok page or a
+  //    privacy-safe TikTok test surface when the live site cannot be reached from CI.
   const focus = path.join(scratch, "focus.png");
   const tiktokLive = await reachableSignedOut("https://www.tiktok.com/", "a[href*='/video/'], [data-e2e]");
   if (tiktokLive) {
-    await capturePage("https://www.tiktok.com/", focus, { viewport: { width: 820, height: 720 } });
+    await capturePage("https://www.tiktok.com/", focus, { viewport: { width: 1180, height: 720 } });
   } else {
-    skipped.push("05-focus-count.png used a fixture because TikTok was not reachable");
-    await screenshotUrl("https://www.tiktok.com/", "https://www.tiktok.com/**", `<style>${fixtureStyle}</style><main><h1>TikTok</h1></main>`, focus, { width: 820, height: 720 });
+    const tiktok = await context.newPage();
+    await tiktok.setViewportSize({ width: 1180, height: 720 });
+    await tiktok.route("https://www.tiktok.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html; charset=utf-8", body: tiktokTestPage }));
+    await tiktok.goto("https://www.tiktok.com/");
+    await tiktok.waitForSelector("#reelless-focus-screen");
+    const title = await tiktok.locator("#reelless-focus-title").textContent();
+    if (!/TikTok is outside your focus plan/i.test(title || "")) throw new Error("TikTok focus screen did not render in Chromium");
+    if (!await tiktok.locator('[data-action="pause"]').isVisible() || !await tiktok.locator('[data-action="settings"]').isVisible()) {
+      throw new Error("TikTok focus-screen actions were not visible in Chromium");
+    }
+    await tiktok.screenshot({ path: focus });
+    await tiktok.close();
+    notes.push("05-focus-count.png used the privacy-safe TikTok Chrome test surface because the live signed-out site was unreachable");
   }
-  const miniPopup = path.join(scratch, "popup.png");
-  const countPage = await context.newPage();
-  await countPage.setViewportSize({ width: 460, height: 720 });
-  await countPage.goto(`chrome-extension://${id}/popup.html`);
-  await countPage.waitForSelector(".shell");
-  await countPage.addStyleTag({ content: "html,body{width:460px!important;height:720px!important;overflow:hidden!important}body{display:grid;place-items:center;background:#1f2421}.shell{width:370px}" });
-  await countPage.screenshot({ path: miniPopup });
-  await countPage.close();
-  await compose(path.join(output, "05-focus-count.png"), "A blocked page and local counts", [{ label: "TikTok focus screen", path: focus }, { label: "Local counts", path: miniPopup }], ["1.55fr", ".85fr"]);
+  await compose(path.join(output, "05-focus-count.png"), "TikTok stops before the feed starts", [{ label: "Blocked by ReelLess in Chrome", path: focus }]);
+
+  // 5. Privacy-safe README overview. This is the real Settings DOM in a temporary profile,
+  //    compacted with capture-only CSS so all eleven supported sites fit in one frame.
+  const supportedSites = await context.newPage();
+  await supportedSites.setViewportSize({ width: 1280, height: 800 });
+  await supportedSites.goto(`chrome-extension://${id}/options.html`);
+  await supportedSites.waitForSelector("[data-platform-card='youtube']");
+  await supportedSites.evaluate(() => { document.querySelector("details.advanced").open = true; });
+  await supportedSites.addStyleTag({ content: `
+    html,body{width:1280px!important;height:800px!important;overflow:hidden!important}
+    body{background:#1f2421!important}
+    .site-header,.hero,.appearance,.advanced>summary,.advanced-intro,.routine-section,
+    #customSection,#ultimateDetails,.coverage,.local-data,.help,.privacy{display:none!important}
+    main{width:100%!important;max-width:none!important;margin:0!important;padding:28px 32px!important}
+    .core-section{margin:0!important;padding:24px!important}
+    .core-section .section-title{margin-bottom:18px!important}
+    .core-section .section-title p,.core-footnote{display:none!important}
+    #corePlatforms{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important}
+    .platform-card{min-height:0!important;padding:15px!important}
+    .platform-card>:not(.platform-head){display:none!important}
+    .platform-head{align-items:center!important;gap:9px!important}
+    .platform-titles small{white-space:normal!important}
+    .core-toggle{margin-left:auto!important}
+    details.advanced{display:block!important;margin:16px 0 0!important;padding:0!important;border:0!important;background:transparent!important}
+    .advanced-body{display:block!important;padding:0!important}
+    #moreSitesSection{display:grid!important;grid-template-columns:260px 1fr!important;gap:18px!important;margin:0!important;padding:22px 24px!important;border:1px solid #39473f!important;border-radius:12px!important;background:#242c27!important}
+    #moreSitesSection>div:first-child p{margin:7px 0 0!important}
+    #advancedPlatforms{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
+    .advanced-platform{margin:0!important}
+    .advanced-platform>summary{min-height:48px!important;padding:11px 14px!important}
+    .advanced-platform-body{display:none!important}
+    ::-webkit-scrollbar{display:none!important}
+  ` });
+  await supportedSites.screenshot({ path: path.join(output, "06-supported-sites.png") });
+  await supportedSites.close();
+
+  // 6. The real per-section controls with deliberate demo choices. Settings are written only to
+  //    the temporary capture profile and contain no account or browsing data.
+  await worker.evaluate(async () => {
+    const stored = await chrome.storage.local.get("settingsV2");
+    const settings = ReelLess.normalizeSettings(stored.settingsV2 || ReelLess.getDefaultSettings());
+    settings.platforms.youtube.mode = "selected";
+    settings.platforms.youtube.sections = { shorts: true, home: true, trending: true, subscriptions: false, gaming: false };
+    settings.platforms.youtube.surfaces.homeFeed = true;
+    settings.platforms.instagram.mode = "selected";
+    settings.platforms.instagram.sections = { reels: true, home: false, explore: true, stories: true };
+    await chrome.storage.local.set({ settingsV2: settings });
+  });
+  const sectionControls = await context.newPage();
+  await sectionControls.setViewportSize({ width: 1280, height: 800 });
+  await sectionControls.goto(`chrome-extension://${id}/options.html`);
+  await sectionControls.waitForSelector("[data-section-choices='youtube']:not([hidden])");
+  await sectionControls.addStyleTag({ content: `
+    html,body{width:1280px!important;height:800px!important;overflow:hidden!important}
+    body{background:#1f2421!important}
+    .site-header,.hero,.appearance,.advanced,.coverage,.local-data,.help,.privacy{display:none!important}
+    main{width:100%!important;max-width:none!important;margin:0!important;padding:28px 32px!important}
+    .core-section{margin:0!important;padding:24px!important}
+    .core-section .section-title{margin-bottom:18px!important}
+    .core-section .section-title p,.core-footnote{display:none!important}
+    #corePlatforms{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px!important}
+    [data-platform-card='facebook'],[data-platform-card='tiktok']{display:none!important}
+    .platform-card{min-height:0!important;padding:18px!important}
+    .mode-group{margin-top:14px!important}
+    .mode-summary{margin:11px 0!important}
+    .section-picker{padding:14px!important}
+    .section-list{gap:7px!important}
+    .section-option{padding:9px 10px!important}
+    .section-option small,.surface-subgroup{display:none!important}
+    .entry-choice{margin-top:12px!important}
+    ::-webkit-scrollbar{display:none!important}
+  ` });
+  await sectionControls.screenshot({ path: path.join(output, "07-section-controls.png") });
+  await sectionControls.close();
+
+  // 7–8. Live YouTube navigation and direct-link behavior. These frames are generated only from
+  //      the real signed-out site; an unavailable network leaves the previous verified files alone.
+  if (ytLiveReady) {
+    const setYouTubeNavigationState = async (enabled, blockHome) => {
+      await worker.evaluate(async ({ enabled, blockHome }) => {
+        const stored = await chrome.storage.local.get("settingsV2");
+        const settings = ReelLess.normalizeSettings(stored.settingsV2 || ReelLess.getDefaultSettings());
+        settings.protectionEnabled = enabled;
+        settings.pausedUntil = null;
+        settings.schedulePreset = "always";
+        settings.platforms.youtube.mode = "selected";
+        settings.platforms.youtube.entryPoints = "hide";
+        settings.platforms.youtube.sections = { shorts: true, home: blockHome, trending: true, subscriptions: false, gaming: false };
+        await chrome.storage.local.set({ settingsV2: settings });
+      }, { enabled, blockHome });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    };
+    const navVisibility = (page) => page.evaluate(() => {
+      const visible = (selector) => Array.from(document.querySelectorAll(selector)).some((node) => node.getClientRects().length > 0);
+      return {
+        home: visible('ytd-guide-entry-renderer a[href="/"], ytd-mini-guide-entry-renderer a[href="/"]'),
+        shorts: visible('ytd-guide-entry-renderer a[href*="/shorts"], ytd-mini-guide-entry-renderer a[href*="/shorts"], a[title="Shorts"]'),
+        subscriptions: visible('ytd-guide-entry-renderer a[href^="/feed/subscriptions"], ytd-mini-guide-entry-renderer a[href^="/feed/subscriptions"]')
+      };
+    });
+    const youtube = await context.newPage();
+    await youtube.setViewportSize({ width: 1280, height: 800 });
+    await setYouTubeNavigationState(false, true);
+    await youtube.goto(YT_SEARCH, { waitUntil: "domcontentloaded", timeout: 45000 });
+    await youtube.waitForSelector("ytd-video-renderer", { timeout: 20000 });
+    await youtube.waitForTimeout(4000);
+    const beforeVisibility = await navVisibility(youtube);
+    if (!beforeVisibility.home || !beforeVisibility.shorts || !beforeVisibility.subscriptions) {
+      throw new Error(`Live YouTube before-state navigation was incomplete: ${JSON.stringify(beforeVisibility)}`);
+    }
+    const shortHref = await youtube.locator('a[href*="/shorts/"]').first().getAttribute("href");
+    if (!shortHref) throw new Error("Live YouTube results did not expose a Short URL");
+    const youtubeBefore = path.join(scratch, "youtube-tabs-before.png");
+    const youtubeAfter = path.join(scratch, "youtube-tabs-after.png");
+    await youtube.screenshot({ path: youtubeBefore, clip: { x: 0, y: 0, width: 360, height: 800 } });
+    await setYouTubeNavigationState(true, true);
+    await youtube.waitForFunction(() => document.documentElement.dataset.reellessMode === "hide");
+    await youtube.waitForTimeout(1200);
+    const afterVisibility = await navVisibility(youtube);
+    if (afterVisibility.home || afterVisibility.shorts || !afterVisibility.subscriptions) {
+      throw new Error(`Live YouTube hidden-navigation assertion failed: ${JSON.stringify(afterVisibility)}`);
+    }
+    await youtube.screenshot({ path: youtubeAfter, clip: { x: 0, y: 0, width: 360, height: 800 } });
+    await composeArrowComparison(
+      path.join(output, "08-youtube-tabs-before-after.png"),
+      "Live YouTube: protected navigation disappears",
+      youtubeBefore,
+      youtubeAfter,
+      "Before — Home and Shorts are visible",
+      "After — Home and Shorts are fully hidden"
+    );
+
+    await setYouTubeNavigationState(true, false);
+    await youtube.goto(new URL(shortHref, "https://www.youtube.com/").href, { waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => {});
+    await youtube.waitForSelector("#reelless-focus-screen", { timeout: 15000 });
+    const focusResult = await youtube.evaluate(() => ({
+      title: document.getElementById("reelless-focus-title")?.textContent || "",
+      links: Array.from(document.querySelectorAll("#reelless-focus-screen .reelless-links a"), (link) => link.textContent)
+    }));
+    if (!/outside your focus plan/i.test(focusResult.title) || !focusResult.links.includes("Home") || !focusResult.links.includes("Subscriptions")) {
+      throw new Error(`Live YouTube focus-screen assertion failed: ${JSON.stringify(focusResult)}`);
+    }
+    await youtube.addStyleTag({ content: "body{filter:blur(12px)!important}" });
+    const youtubeFocus = path.join(scratch, "youtube-focus.png");
+    await youtube.screenshot({ path: youtubeFocus });
+    await youtube.close();
+    await compose(path.join(output, "09-youtube-focus-screen.png"), "A YouTube link cannot bypass your focus plan", [{ label: "Choose an allowed page, pause, or open settings", path: youtubeFocus }]);
+    console.log("08-youtube-tabs-before-after.png and 09-youtube-focus-screen.png captured from live YouTube.");
+  } else {
+    skipped.push("08-youtube-tabs-before-after.png and 09-youtube-focus-screen.png (YouTube was not reachable)");
+  }
 
   // Small promotional tile, rendered from the same brand/UI palette.
   const promo = await context.newPage();
@@ -230,8 +392,11 @@ try {
     console.log("NOT regenerated, previous files left in place:");
     for (const item of skipped) console.log(`  - ${item}`);
     console.log("");
-    console.log("To capture the signed-in frames, point REELLESS_PROFILE at a Chrome profile directory");
-    console.log("that is already logged in to Instagram and Facebook, then run this script again.");
+  }
+  if (notes.length) {
+    console.log("");
+    console.log("Capture notes:");
+    for (const item of notes) console.log(`  - ${item}`);
   }
 } finally {
   if (context) await context.close();

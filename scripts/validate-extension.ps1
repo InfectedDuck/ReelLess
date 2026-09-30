@@ -64,7 +64,7 @@ foreach ($size in @("16", "32", "48", "128")) {
 }
 
 Add-Type -AssemblyName System.Drawing
-foreach ($file in @("01-popup.png", "02-youtube-before-after.png", "03-instagram-facebook.png", "04-advanced-settings.png", "05-focus-count.png")) {
+foreach ($file in @("01-popup.png", "02-youtube-before-after.png", "04-advanced-settings.png", "05-focus-count.png", "06-supported-sites.png", "07-section-controls.png", "08-youtube-tabs-before-after.png", "09-youtube-focus-screen.png")) {
   $assetPath = Join-Path $root "store-assets/$file"
   if (-not (Test-Path -LiteralPath $assetPath)) { throw "Missing listing screenshot: $file" }
   $image = [System.Drawing.Image]::FromFile($assetPath)
