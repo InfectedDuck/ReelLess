@@ -35,6 +35,6 @@ Removing an Advanced site or custom domain removes its related optional access w
 
 ## Contact
 
-Questions and privacy reports can be opened at [GitHub Issues](https://github.com/InfectedDuck/Google-Chrome-Safe-Short-Video-content-blocker/issues).
+Questions and privacy reports can be opened at [GitHub Issues](https://github.com/InfectedDuck/ReelLess/issues).
 
 If ReelLess ever changes its data practices, this policy will be updated before the changed version is released.

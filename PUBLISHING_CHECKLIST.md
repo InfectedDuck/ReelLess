@@ -21,14 +21,14 @@ This is the authoritative release checklist. `SUBMISSION_README.md` points here;
 
 - The listing name is `Block Shorts & Reels: YouTube, Instagram, TikTok, Facebook — ReelLess` and the summary is the manifest `description`. Both are read from `manifest.json`; `npm run validate` fails if the name exceeds 75 characters or the summary exceeds 132. ReelLess stays the in-product name in the popup, icon, and toolbar tooltip.
 - Copy the detailed description, single purpose, permission explanations, data-use disclosure, support URL, and non-affiliation notice from `STORE_LISTING.md` (`documents/STORE_LISTING.md` inside the submission kit).
-- Upload the five numbered 1280×800 screenshots from `store-assets/` in order, regenerated from the final build. Fail asset generation when required live captures are unavailable instead of retaining old images.
+- Upload the five `screenshot-N-*.png` 1280×800 screenshots from the kit's `listing-assets/` in order (01 popup, 02 YouTube before/after, 05 TikTok focus screen, 06 supported sites, 07 section controls), regenerated from the final build. Fail asset generation when required live captures are unavailable instead of retaining old images.
 - Upload the 440×280 promo tile. The 1400×560 marquee tile is optional.
 - Select the most accurate productivity category and English as the initial language.
 - Avoid claims about guaranteed productivity, rankings, user counts, or platform endorsement. Do not claim estimated "hours saved."
 
 ## Privacy
 
-- Use the public GitHub Pages privacy-policy URL (`docs/privacy.html`) once it is live (verify signed-out).
+- Use the public GitHub Pages privacy-policy URL `https://infectedduck.github.io/ReelLess/privacy.html` (from `docs/privacy.html`) once it is live (verify signed-out).
 - Declare the extension's single purpose exactly as written in `STORE_LISTING.md`.
 - Disclose local processing of supported-site URLs/page elements and local storage of settings, prompt state, and aggregate counters.
 - State that ReelLess does not sell or transmit user data and does not use data for advertising, credit, or unrelated purposes.

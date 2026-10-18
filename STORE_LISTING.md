@@ -48,9 +48,9 @@ No user data is collected or transmitted. Processing and storage remain local. T
 
 ## Support and privacy
 
-- Privacy: publish `docs/privacy.html` with GitHub Pages.
-- Support: https://github.com/InfectedDuck/Google-Chrome-Safe-Short-Video-content-blocker/issues
-- Source: https://github.com/InfectedDuck/Google-Chrome-Safe-Short-Video-content-blocker
+- Privacy: https://infectedduck.github.io/ReelLess/privacy.html (published from `docs/` with GitHub Pages; verify it loads signed-out before submitting)
+- Support: https://github.com/InfectedDuck/ReelLess/issues
+- Source: https://github.com/InfectedDuck/ReelLess
 
 ## Trademark notice
 

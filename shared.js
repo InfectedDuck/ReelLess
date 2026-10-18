@@ -829,7 +829,7 @@
   }
 
   function getSupportUrl() {
-    return "https://github.com/InfectedDuck/Google-Chrome-Safe-Short-Video-content-blocker/issues";
+    return "https://github.com/InfectedDuck/ReelLess/issues";
   }
 
   // User-initiated diagnostics only: version, browser, effective state, per-site
