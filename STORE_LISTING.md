@@ -62,7 +62,7 @@ ReelLess is an independent extension and is not affiliated with, endorsed by, or
 
 ## Category and language
 
-- Category: Productivity (subcategory Workflow & Planning if asked)
+- Category: Workflow & Planning, in the Productivity group (Russian dashboard: РАБОТА → Работа и планирование)
 - Language: English
 
 ## Single purpose
