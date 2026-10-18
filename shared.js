@@ -107,7 +107,7 @@
         // dedicated Watch page, video addresses, Live videos, fb.watch shares, and a page's
         // Videos tab therefore follow the default protection; Marketplace stays opt-in.
         // fb.watch exists only for video shares, so any route on it is Watch.
-        { id: "watch", label: "Watch", description: "Blocks the Watch page, video and Live pages, and video posts in feeds. Ordinary posts stay available.", shortform: true, paths: ["/watch", "/videos", "/video.php", "/share/v", "/live"],
+        { id: "watch", label: "Watch", description: "Blocks the Watch page and video and Live pages with a focus screen. Videos inside the Home feed are not hidden.", shortform: true, paths: ["/watch", "/videos", "/video.php", "/share/v", "/live"],
           patterns: [/^\/[^/]+\/videos(?:\/|$)/, /^\/[^/]+\/live(?:\/|$)/],
           hostPatterns: [{ hosts: ["fb.watch", "www.fb.watch"], pattern: /^\// }] },
         { id: "home", label: "Home feed", description: "Blocks the home feed (/) entirely with a focus screen. Groups, Watch, Marketplace, and messages stay available unless blocked separately.", shortform: false, fullPage: true, paths: ["/"] },

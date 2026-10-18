@@ -16,7 +16,7 @@ Four calm defaults work immediately:
 
 - YouTube: hide Shorts navigation, shelves, cards, results, and channel tabs; stop direct Short visits with the focus screen instead of playing them.
 - Instagram: hide Reels entry points and return direct Reel visits to the feed.
-- Facebook: hide Reels and feed videos, stop opened videos with the focus screen, and return direct Reel visits to the feed. Videos can be allowed again under Advanced → Facebook → Selected sections.
+- Facebook: hide the Reels and Watch (Video) tabs, return direct Reel visits to the feed, and stop Watch, video, and Live pages with the focus screen. Home feed, Groups, Stories, Marketplace, and Events can each be blocked as whole pages under Advanced → Facebook → Selected sections. Facebook blocking works per page and tab; individual videos inside the Home feed are not hidden.
 - TikTok: replace feed and video surfaces with a quiet focus screen. Messages, Upload, and Settings stay available by default.
 
 The popup shows protection status, local today/all-time blocked-attempt counts, four platform switches, and quick pauses for 5, 15, or 30 minutes or until tomorrow. Choose Dark, Light, or Use Chrome setting from Settings.

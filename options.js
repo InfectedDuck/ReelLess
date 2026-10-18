@@ -57,7 +57,7 @@
     if (!platform.core) return "Blocked page links";
     if (platform.id === "youtube") return "Shorts in feeds";
     if (platform.id === "instagram") return "Reels in feeds";
-    if (platform.id === "facebook") return "Reels and videos in feeds";
+    if (platform.id === "facebook") return "Reels and Watch links";
     if (platform.id === "tiktok") return "Feed links";
     return "Short-form links";
   }
@@ -183,7 +183,7 @@
   function platformCoverage(platform) {
     if (platform.id === "youtube") return "Shorts links, shelves, and tabs";
     if (platform.id === "tiktok") return "For You and video pages";
-    if (platform.id === "facebook") return "Reels and feed videos";
+    if (platform.id === "facebook") return "Reels and Watch pages";
     return "Reels links and direct Reel visits";
   }
 
